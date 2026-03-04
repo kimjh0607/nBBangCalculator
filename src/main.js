@@ -90,11 +90,10 @@ function addParticipant() {
     id: genParticipantId(),
     name
   });
-  input.value = '';
-  input.focus();
   state.result = null;
   saveState();
   render();
+  document.getElementById('participant-input').focus();
 }
 
 function removeParticipant(id) {
