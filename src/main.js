@@ -386,7 +386,7 @@ function renderPayerBankInfos() {
         <input type="text"
                data-action="update-payer-bank" data-payer="${pid}"
                value="${escapeHtml(state.payerBankInfos[pid] || '')}"
-               placeholder="카카오뱅크 3333-01-1234567 ${escapeHtml(p.name)}" />
+               placeholder="은행명 ****-**-**** ${escapeHtml(p.name)}" />
       </div>
     `;
   }).join('');
