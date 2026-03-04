@@ -897,6 +897,10 @@ select {
 }
 
 /* --- Animations --- */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
 @keyframes fadeSlideUp {
   from {
     opacity: 0;

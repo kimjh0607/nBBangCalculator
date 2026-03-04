@@ -1,5 +1,6 @@
 import './style.css';
 import { calculateSettlement, formatAmount, formatResultText } from './calculator.js';
+import html2canvas from 'html2canvas';
 
 // ============================================
 // State
@@ -245,28 +246,69 @@ function copyResult() {
   });
 }
 
-function shareResult() {
+async function shareResult() {
   if (!state.result) return;
+
   const text = formatResultText(state.participants, state.rounds, state.result, state.bankInfo);
   const header = state.meetingName
     ? `📋 [${state.meetingName}] 정산 결과  ${state.meetingDate}\n\n`
     : `📋 정산 결과  ${state.meetingDate}\n\n`;
   const fullText = header + text;
 
-  if (navigator.share) {
-    navigator.share({ text: fullText }).catch(() => {});
-  } else {
-    navigator.clipboard.writeText(fullText).then(() => {
-      showToast('클립보드에 복사되었습니다!');
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = fullText;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      ta.remove();
-      showToast('클립보드에 복사되었습니다!');
+  const shareBtn = document.getElementById('share-result-btn');
+  const originalHtml = shareBtn?.innerHTML;
+  if (shareBtn) {
+    shareBtn.disabled = true;
+    shareBtn.innerHTML = `<i data-lucide="loader-circle" style="width:16px;height:16px;animation:spin 1s linear infinite"></i> 준비 중...`;
+    lucide.createIcons({ nodes: [shareBtn] });
+  }
+
+  try {
+    const resultEl = document.getElementById('result-section');
+    await document.fonts.ready;
+
+    const canvas = await html2canvas(resultEl, {
+      backgroundColor: '#0a0a14',
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      windowWidth: resultEl.scrollWidth,
     });
+
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    const file = new File([blob], '정산결과.png', { type: 'image/png' });
+
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], text: fullText });
+    } else if (navigator.share) {
+      await navigator.share({ text: fullText });
+    } else {
+      // PC 폴백: 이미지 다운로드 + 텍스트 복사
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = '정산결과.png';
+      a.click();
+      URL.revokeObjectURL(url);
+      navigator.clipboard.writeText(fullText).catch(() => {});
+      showToast('이미지 저장 + 텍스트 복사 완료!');
+    }
+  } catch (err) {
+    if (err?.name !== 'AbortError') {
+      // 이미지 캡처 실패 시 텍스트만 공유
+      if (navigator.share) {
+        navigator.share({ text: fullText }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(fullText).catch(() => {});
+        showToast('클립보드에 복사되었습니다!');
+      }
+    }
+  } finally {
+    if (shareBtn && originalHtml) {
+      shareBtn.disabled = false;
+      shareBtn.innerHTML = originalHtml;
+      lucide.createIcons({ nodes: [shareBtn] });
+    }
   }
 }
 
