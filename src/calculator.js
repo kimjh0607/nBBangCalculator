@@ -88,14 +88,6 @@ export function calculateSettlement(participants, rounds) {
             }
         });
 
-        // 비고: 결제자 표시
-        if (round.payerId) {
-            const payerNote = `${round.name || round.id} 결제`;
-            const existing = notes[round.payerId];
-            if (existing && !existing.includes(payerNote)) {
-                existing.push(payerNote);
-            }
-        }
     });
 
     // 비고: 차수별 비음주자 표시
