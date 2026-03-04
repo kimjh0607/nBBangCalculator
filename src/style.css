@@ -209,6 +209,7 @@ input[type="number"],
 input[type="date"],
 select {
   width: 100%;
+  min-width: 0;
   padding: var(--space-3) var(--space-4);
   background: var(--bg-input);
   border: 1px solid var(--border-subtle);
@@ -218,6 +219,7 @@ select {
   font-size: var(--font-size-base);
   transition: all var(--transition-fast);
   outline: none;
+  box-sizing: border-box;
 }
 
 input::placeholder {

@@ -639,10 +639,11 @@ function renderResult() {
           <i data-lucide="share-2"></i>
           공유하기
         </button>
-        <button class="btn btn--ghost" id="reset-btn" title="초기화">
-          <i data-lucide="rotate-ccw"></i>
-        </button>
       </div>
+      <button class="btn btn--danger btn--full mt-3" id="reset-btn">
+        <i data-lucide="rotate-ccw"></i>
+        새 정산 시작
+      </button>
     </section>
   `;
 }
