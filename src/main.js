@@ -1,0 +1,770 @@
+import './style.css';
+import { calculateSettlement, formatAmount, formatResultText } from './calculator.js';
+
+// ============================================
+// State
+// ============================================
+let state = {
+  meetingName: '',
+  meetingDate: new Date().toISOString().split('T')[0],
+  bankInfo: '',
+  participants: [],
+  rounds: [],
+  result: null,
+  nextParticipantId: 1,
+  nextRoundId: 1,
+};
+
+// ============================================
+// ID Generators
+// ============================================
+function genParticipantId() { return `p${state.nextParticipantId++}`; }
+function genRoundId() { return state.nextRoundId++; }
+
+// ============================================
+// State Persistence
+// ============================================
+function saveState() {
+  try {
+    localStorage.setItem('splitEasy_state', JSON.stringify(state));
+  } catch (e) { /* ignore */ }
+}
+
+function loadState() {
+  try {
+    const saved = localStorage.getItem('splitEasy_state');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state = { ...state, ...parsed };
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function resetState() {
+  localStorage.removeItem('splitEasy_state');
+  state = {
+    meetingName: '',
+    meetingDate: new Date().toISOString().split('T')[0],
+    bankInfo: '',
+    participants: [],
+    rounds: [],
+    result: null,
+    nextParticipantId: 1,
+    nextRoundId: 1,
+  };
+  render();
+}
+
+// ============================================
+// Toast
+// ============================================
+function showToast(message, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = `toast toast--${type}`;
+  toast.innerHTML = `
+    <i data-lucide="${type === 'success' ? 'check-circle' : 'info'}"></i>
+    <span>${message}</span>
+  `;
+  container.appendChild(toast);
+  lucide.createIcons({ nodes: [toast] });
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 300ms ease-out forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 2000);
+}
+
+// ============================================
+// Event Handlers
+// ============================================
+function addParticipant() {
+  const input = document.getElementById('participant-input');
+  const name = input.value.trim();
+  if (!name) return;
+  if (state.participants.some(p => p.name === name)) {
+    showToast('이미 추가된 이름입니다', 'info');
+    return;
+  }
+  state.participants.push({
+    id: genParticipantId(),
+    name
+  });
+  input.value = '';
+  input.focus();
+  state.result = null;
+  saveState();
+  render();
+}
+
+function removeParticipant(id) {
+  state.participants = state.participants.filter(p => p.id !== id);
+  // 차수에서도 제거
+  state.rounds.forEach(r => {
+    r.participantIds = r.participantIds.filter(pid => pid !== id);
+    if (r.payerId === id) r.payerId = null;
+  });
+  state.result = null;
+  saveState();
+  render();
+}
+
+function toggleRoundDrinker(roundId, participantId) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  if (!round.drinkerIds) round.drinkerIds = [];
+  const idx = round.drinkerIds.indexOf(participantId);
+  if (idx >= 0) {
+    round.drinkerIds.splice(idx, 1);
+  } else {
+    round.drinkerIds.push(participantId);
+  }
+  state.result = null;
+  saveState();
+  render();
+}
+
+function addRound() {
+  const roundNum = genRoundId();
+  // 이전 차수 참여자를 기본 체크
+  const prevRound = state.rounds[state.rounds.length - 1];
+  const defaultParticipants = prevRound
+    ? [...prevRound.participantIds]
+    : state.participants.map(p => p.id);
+
+  state.rounds.push({
+    id: roundNum,
+    name: `${roundNum}차`,
+    totalAmount: 0,
+    foodAmount: 0,
+    drinkAmount: 0,
+    splitDrink: false,
+    payerId: state.participants.length > 0 ? state.participants[0].id : null,
+    participantIds: defaultParticipants,
+    drinkerIds: [...defaultParticipants]  // 기본: 전원 음주
+  });
+  state.result = null;
+  saveState();
+  render();
+
+  // 스크롤 to new round
+  setTimeout(() => {
+    const cards = document.querySelectorAll('.round-card');
+    const last = cards[cards.length - 1];
+    if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, 100);
+}
+
+function removeRound(roundId) {
+  state.rounds = state.rounds.filter(r => r.id !== roundId);
+  state.result = null;
+  saveState();
+  render();
+}
+
+function updateRound(roundId, field, value) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+
+  if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount') {
+    round[field] = parseInt(value) || 0;
+  } else if (field === 'splitDrink') {
+    round[field] = value;
+    if (value && round.totalAmount > 0 && round.foodAmount === 0) {
+      // 토글 ON 시 총액을 음식값으로 이동
+      round.foodAmount = round.totalAmount;
+      round.totalAmount = 0;
+    } else if (!value && round.foodAmount > 0) {
+      // 토글 OFF 시 음식+술 합산
+      round.totalAmount = round.foodAmount + round.drinkAmount;
+      round.foodAmount = 0;
+      round.drinkAmount = 0;
+    }
+  } else if (field === 'name') {
+    round[field] = value;
+  } else {
+    round[field] = value;
+  }
+  state.result = null;
+  saveState();
+  render();
+}
+
+function toggleRoundParticipant(roundId, participantId) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  const idx = round.participantIds.indexOf(participantId);
+  if (idx >= 0) {
+    round.participantIds.splice(idx, 1);
+  } else {
+    round.participantIds.push(participantId);
+  }
+  state.result = null;
+  saveState();
+  render();
+}
+
+function doCalculate() {
+  if (state.participants.length === 0) {
+    showToast('참여자를 추가해주세요', 'info');
+    return;
+  }
+  if (state.rounds.length === 0) {
+    showToast('차수를 추가해주세요', 'info');
+    return;
+  }
+  state.result = calculateSettlement(state.participants, state.rounds);
+  saveState();
+  render();
+
+  setTimeout(() => {
+    const resultEl = document.getElementById('result-section');
+    if (resultEl) resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, 100);
+}
+
+function copyResult() {
+  if (!state.result) return;
+  const text = formatResultText(state.participants, state.rounds, state.result, state.bankInfo);
+
+  // 모임 이름 추가
+  const header = state.meetingName
+    ? `📋 [${state.meetingName}] 정산 결과  ${state.meetingDate}\n\n`
+    : '';
+
+  navigator.clipboard.writeText(header + text).then(() => {
+    showToast('클립보드에 복사되었습니다!');
+  }).catch(() => {
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = header + text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('클립보드에 복사되었습니다!');
+  });
+}
+
+function shareResult() {
+  if (!state.result) return;
+  const text = formatResultText(state.participants, state.rounds, state.result, state.bankInfo);
+  const header = state.meetingName
+    ? `📋 [${state.meetingName}] 정산 결과  ${state.meetingDate}\n\n`
+    : `📋 정산 결과  ${state.meetingDate}\n\n`;
+  const fullText = header + text;
+
+  if (navigator.share) {
+    navigator.share({ text: fullText }).catch(() => {});
+  } else {
+    navigator.clipboard.writeText(fullText).then(() => {
+      showToast('클립보드에 복사되었습니다!');
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = fullText;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      showToast('클립보드에 복사되었습니다!');
+    });
+  }
+}
+
+// ============================================
+// Render
+// ============================================
+function render() {
+  const app = document.getElementById('app');
+  app.innerHTML = `
+    ${renderHeader()}
+    ${renderMeetingInfo()}
+    ${renderParticipants()}
+    ${renderRounds()}
+    ${renderCalculateButton()}
+    ${state.result ? renderResult() : ''}
+  `;
+
+  // Bind events
+  bindEvents();
+
+  // Init Lucide icons
+  lucide.createIcons();
+}
+
+function renderHeader() {
+  return `
+    <header class="header">
+      <h1 class="header__logo">nBBangCalculator</h1>
+      <p class="header__sub">모임 정산, 5분이면 끝</p>
+    </header>
+  `;
+}
+
+function renderMeetingInfo() {
+  return `
+    <section class="section" style="animation-delay: 0.05s">
+      <div class="section__title">
+        <i data-lucide="calendar"></i>
+        <span>모임 정보</span>
+      </div>
+      <div class="card">
+        <div class="input-row">
+          <div class="input-field">
+            <label>모임 이름</label>
+            <input type="text" id="meeting-name" placeholder="예: 팀 회식"
+                   value="${escapeHtml(state.meetingName)}" />
+          </div>
+          <div class="input-field">
+            <label>날짜</label>
+            <input type="date" id="meeting-date" value="${state.meetingDate}" />
+          </div>
+        </div>
+        <div class="input-field mt-3">
+          <label>💳 계좌번호 <span class="text-muted text-sm">(결제자 본인)</span></label>
+          <input type="text" id="bank-info"
+                 value="${escapeHtml(state.bankInfo)}"
+                 placeholder="카카오뱅크 3333-01-1234567 홍길동" />
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderParticipants() {
+  const chips = state.participants.map(p => `
+    <div class="chip" data-id="${p.id}">
+      <span>${escapeHtml(p.name)}</span>
+      <button class="chip__remove" data-action="remove-participant" data-id="${p.id}" title="삭제">×</button>
+    </div>
+  `).join('');
+
+  return `
+    <section class="section" style="animation-delay: 0.1s">
+      <div class="section__title">
+        <i data-lucide="users"></i>
+        <span>참여자</span>
+        ${state.participants.length > 0 ? `<span class="text-muted text-sm">(${state.participants.length}명)</span>` : ''}
+      </div>
+      <div class="card">
+        <div class="input-group">
+          <input type="text" id="participant-input"
+                 placeholder="이름을 입력하고 Enter"
+                 style="flex:1" />
+          <button class="btn btn--primary btn--sm" id="add-participant-btn">
+            <i data-lucide="plus"></i>
+            추가
+          </button>
+        </div>
+        ${state.participants.length > 0 ? `
+          <div class="chip-list">${chips}</div>
+        ` : `
+          <div class="empty-state mt-3">
+            <div class="empty-state__icon">👥</div>
+            <p>참여자를 추가해주세요</p>
+          </div>
+        `}
+      </div>
+    </section>
+  `;
+}
+
+function renderRounds() {
+  const roundCards = state.rounds.map((round, idx) => renderRoundCard(round, idx)).join('');
+
+  return `
+    <section class="section" style="animation-delay: 0.15s">
+      <div class="section__title">
+        <i data-lucide="receipt"></i>
+        <span>차수별 지출</span>
+      </div>
+      ${roundCards}
+      <button class="btn btn--secondary btn--full" id="add-round-btn"
+              ${state.participants.length === 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
+        <i data-lucide="plus-circle"></i>
+        차수 추가
+      </button>
+    </section>
+  `;
+}
+
+function renderRoundCard(round, idx) {
+  const drinkerIds = round.drinkerIds || [];
+
+  // 참여자 체크리스트
+  const participantChecks = state.participants.map(p => {
+    const checked = round.participantIds.includes(p.id);
+    const isDrinker = drinkerIds.includes(p.id);
+    return `
+      <label class="check-item ${checked ? 'check-item--checked' : ''}"
+             data-action="toggle-round-participant"
+             data-round="${round.id}" data-participant="${p.id}">
+        <input type="checkbox" ${checked ? 'checked' : ''} />
+        <span class="check-item__box">
+          <svg viewBox="0 0 14 14"><polyline points="2 7 5.5 10.5 12 4"></polyline></svg>
+        </span>
+        <span>${escapeHtml(p.name)}</span>
+        ${round.splitDrink && checked ? `
+          <span class="drink-toggle ${isDrinker ? 'drink-toggle--drinker' : 'drink-toggle--sober'}"
+                data-action="toggle-round-drinker"
+                data-round="${round.id}" data-participant="${p.id}"
+                title="클릭하여 음주/비음주 전환">
+            ${isDrinker ? '🍺' : '🚫'}
+          </span>
+        ` : ''}
+      </label>
+    `;
+  }).join('');
+
+  // 결제자 옵션
+  const payerOptions = state.participants.map(p =>
+    `<option value="${p.id}" ${round.payerId === p.id ? 'selected' : ''}>${escapeHtml(p.name)}</option>`
+  ).join('');
+
+  const amountInput = round.splitDrink
+    ? `
+      <div class="split-input">
+        <div class="input-field">
+          <label>🍔 음식값</label>
+          <input type="number" data-action="update-round" data-round="${round.id}" data-field="foodAmount"
+                 value="${round.foodAmount || ''}" placeholder="0" inputmode="numeric" />
+        </div>
+        <div class="input-field">
+          <label>🍺 술값</label>
+          <input type="number" data-action="update-round" data-round="${round.id}" data-field="drinkAmount"
+                 value="${round.drinkAmount || ''}" placeholder="0" inputmode="numeric" />
+        </div>
+      </div>
+    `
+    : `
+      <div class="input-field">
+        <label>총 금액</label>
+        <input type="number" data-action="update-round" data-round="${round.id}" data-field="totalAmount"
+               value="${round.totalAmount || ''}" placeholder="0" inputmode="numeric" />
+      </div>
+    `;
+
+  // 차수에서 음주 구분 활성화 시 안내
+  const drinkHint = round.splitDrink
+    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 = 음주 &nbsp; 🚫 = 비음주 &nbsp; (이름 옆 아이콘을 클릭하여 전환)</p>`
+    : '';
+
+  return `
+    <div class="round-card" style="animation-delay: ${0.05 * idx}s">
+      <div class="round-card__header">
+        <div class="round-card__title">
+          <span class="round-card__number">${round.id}</span>
+          <input type="text" value="${escapeHtml(round.name)}"
+                 data-action="update-round" data-round="${round.id}" data-field="name"
+                 style="background:transparent;border:none;color:var(--text-primary);font-size:var(--font-size-lg);font-weight:700;font-family:var(--font-family);width:100px;padding:0" />
+        </div>
+        <button class="round-card__delete" data-action="remove-round" data-round="${round.id}" title="삭제">
+          <i data-lucide="trash-2" style="width:16px;height:16px"></i>
+        </button>
+      </div>
+
+      <div class="round-card__body">
+        <div>
+          <div class="payer-select-wrap">
+            <label>💳 결제자</label>
+            <select data-action="update-round" data-round="${round.id}" data-field="payerId">
+              ${payerOptions}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex-between mb-2">
+            <span class="round-card__field-label" style="margin-bottom:0">금액</span>
+            <label class="toggle-wrap">
+              <span class="toggle-wrap__label">음주/비음주 구분</span>
+              <span class="toggle">
+                <input type="checkbox" ${round.splitDrink ? 'checked' : ''}
+                       data-action="toggle-split-drink" data-round="${round.id}" />
+                <span class="toggle__slider"></span>
+              </span>
+            </label>
+          </div>
+          ${amountInput}
+        </div>
+
+        <div>
+          <div class="round-card__field-label">참여자</div>
+          <div class="check-group">
+            ${participantChecks}
+          </div>
+          ${drinkHint}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCalculateButton() {
+  const canCalculate = state.participants.length > 0 && state.rounds.length > 0;
+  return `
+    <section class="section section--cta" style="animation-delay: 0.2s">
+      <button class="btn btn--primary btn--lg btn--full" id="calculate-btn"
+              ${!canCalculate ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
+        <i data-lucide="calculator"></i>
+        정산하기
+      </button>
+    </section>
+  `;
+}
+
+function renderResult() {
+  const { matrix, totals, notes, transfers } = state.result;
+
+  // 테이블
+  let tableHtml = '<table class="result-table"><thead><tr>';
+  tableHtml += '<th>이름</th>';
+  state.rounds.forEach(r => {
+    tableHtml += `<th>${escapeHtml(r.name)}</th>`;
+  });
+  tableHtml += '<th>총합</th><th style="text-align:left">비고</th></tr></thead><tbody>';
+
+  state.participants.forEach(p => {
+    tableHtml += '<tr>';
+    tableHtml += `<td>${escapeHtml(p.name)}</td>`;
+    state.rounds.forEach(r => {
+      const val = matrix[p.id][r.id];
+      const isPayer = r.payerId === p.id;
+      if (val === null) {
+        tableHtml += '<td class="not-participated">-</td>';
+      } else if (isPayer) {
+        tableHtml += `<td class="amount payer-cell">${formatAmount(val)}<span class="payer-chip">결제</span></td>`;
+      } else if (val === 0) {
+        tableHtml += '<td style="color:var(--success)">0원</td>';
+      } else {
+        tableHtml += `<td class="amount">${formatAmount(val)}</td>`;
+      }
+    });
+    tableHtml += `<td class="total-col amount">${formatAmount(totals[p.id])}</td>`;
+    tableHtml += `<td class="note-col">${escapeHtml((notes[p.id] || []).join(', '))}</td>`;
+    tableHtml += '</tr>';
+  });
+  tableHtml += '</tbody></table>';
+
+  // 송금 안내
+  const bankInfo = (state.bankInfo || '').trim();
+  const bankBanner = bankInfo ? `
+    <div class="bank-banner">
+      <div class="bank-banner__info">
+        <span class="bank-banner__label">💳 계좌번호</span>
+        <span class="bank-banner__value">${escapeHtml(bankInfo)}</span>
+      </div>
+      <button class="btn-copy-bank" data-action="copy-bank"
+              data-bank="${escapeHtml(bankInfo)}">
+        <i data-lucide="copy" style="width:13px;height:13px"></i>
+        복사
+      </button>
+    </div>
+  ` : '';
+
+  const transferHtml = transfers.length > 0
+    ? transfers.map((t, i) => `
+        <div class="transfer-item" style="animation-delay: ${0.1 * i}s">
+          <div class="transfer-item__main">
+            <span class="transfer-item__from">${escapeHtml(t.from)}</span>
+            <span class="transfer-item__arrow">
+              <i data-lucide="arrow-right" style="width:20px;height:20px"></i>
+            </span>
+            <span class="transfer-item__to">${escapeHtml(t.to)}</span>
+            <span class="transfer-item__amount">${formatAmount(t.amount)}</span>
+          </div>
+        </div>
+      `).join('')
+    : '<div class="empty-state"><p>모두 정산 완료!</p></div>';
+
+  return `
+    <section class="section" id="result-section" style="animation-delay: 0.1s">
+      <div class="section__title">
+        <i data-lucide="bar-chart-3"></i>
+        <span>정산 결과</span>
+      </div>
+      <div class="result-table-wrap">
+        ${tableHtml}
+      </div>
+
+      <div class="section__title mt-4">
+        <i data-lucide="send"></i>
+        <span>송금 안내</span>
+      </div>
+      ${bankBanner}
+      <div class="transfer-list">
+        ${transferHtml}
+      </div>
+
+      <div class="mt-4" style="display:flex;gap:var(--space-2)">
+        <button class="btn btn--secondary btn--full" id="copy-result-btn">
+          <i data-lucide="clipboard-copy"></i>
+          결과 복사
+        </button>
+        <button class="btn btn--primary btn--full" id="share-result-btn">
+          <i data-lucide="share-2"></i>
+          공유하기
+        </button>
+        <button class="btn btn--ghost" id="reset-btn" title="초기화">
+          <i data-lucide="rotate-ccw"></i>
+        </button>
+      </div>
+    </section>
+  `;
+}
+
+// ============================================
+// Event Binding
+// ============================================
+function bindEvents() {
+  // Participant input enter
+  const participantInput = document.getElementById('participant-input');
+  if (participantInput) {
+    participantInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); addParticipant(); }
+    });
+  }
+
+  // Add participant btn
+  const addBtn = document.getElementById('add-participant-btn');
+  if (addBtn) addBtn.addEventListener('click', addParticipant);
+
+  // Add round btn
+  const addRoundBtn = document.getElementById('add-round-btn');
+  if (addRoundBtn) addRoundBtn.addEventListener('click', addRound);
+
+  // Calculate btn
+  const calcBtn = document.getElementById('calculate-btn');
+  if (calcBtn) calcBtn.addEventListener('click', doCalculate);
+
+  // Copy result btn
+  const copyBtn = document.getElementById('copy-result-btn');
+  if (copyBtn) copyBtn.addEventListener('click', copyResult);
+
+  // Share result btn
+  const shareBtn = document.getElementById('share-result-btn');
+  if (shareBtn) shareBtn.addEventListener('click', shareResult);
+
+  // Reset btn
+  const resetBtn = document.getElementById('reset-btn');
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    if (confirm('모든 데이터를 초기화할까요?')) resetState();
+  });
+
+  // Meeting info
+  const meetingName = document.getElementById('meeting-name');
+  if (meetingName) {
+    meetingName.addEventListener('input', e => {
+      state.meetingName = e.target.value;
+      saveState();
+    });
+  }
+  const meetingDate = document.getElementById('meeting-date');
+  if (meetingDate) {
+    meetingDate.addEventListener('input', e => {
+      state.meetingDate = e.target.value;
+      saveState();
+    });
+  }
+  const bankInfoInput = document.getElementById('bank-info');
+  if (bankInfoInput) {
+    bankInfoInput.addEventListener('input', e => {
+      state.bankInfo = e.target.value;
+      saveState();
+    });
+  }
+
+  // Delegated events
+  document.getElementById('app').addEventListener('click', handleDelegatedClick);
+  document.getElementById('app').addEventListener('change', handleDelegatedChange);
+  document.getElementById('app').addEventListener('input', handleDelegatedInput);
+}
+
+function handleDelegatedClick(e) {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+
+  const action = target.dataset.action;
+
+  switch (action) {
+    case 'remove-participant':
+      removeParticipant(target.dataset.id);
+      break;
+    case 'toggle-round-drinker':
+      e.preventDefault();
+      e.stopPropagation();
+      toggleRoundDrinker(parseInt(target.dataset.round), target.dataset.participant);
+      break;
+    case 'toggle-round-participant':
+      e.preventDefault();
+      toggleRoundParticipant(parseInt(target.dataset.round), target.dataset.participant);
+      break;
+    case 'remove-round':
+      removeRound(parseInt(target.dataset.round));
+      break;
+    case 'copy-bank': {
+      const text = target.dataset.bank;
+      navigator.clipboard.writeText(text).then(() => {
+        showToast('계좌번호 복사됨!');
+      }).catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast('계좌번호 복사됨!');
+      });
+      break;
+    }
+  }
+}
+
+function handleDelegatedChange(e) {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+  const action = target.dataset.action;
+
+  switch (action) {
+    case 'toggle-split-drink':
+      updateRound(parseInt(target.dataset.round), 'splitDrink', target.checked);
+      break;
+    case 'update-round':
+      // input 요소는 handleDelegatedInput에서 이미 처리됨 (re-render 없이)
+      // select 요소(결제자 변경)만 re-render 필요
+      if (target.tagName === 'SELECT') {
+        updateRound(parseInt(target.dataset.round), target.dataset.field, target.value);
+      }
+      break;
+  }
+}
+
+function handleDelegatedInput(e) {
+  const target = e.target.closest('[data-action]');
+  if (!target) return;
+  if (target.dataset.action === 'update-round') {
+    const round = state.rounds.find(r => r.id === parseInt(target.dataset.round));
+    if (!round) return;
+    const field = target.dataset.field;
+    if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount') {
+      round[field] = parseInt(target.value) || 0;
+    } else if (field === 'name') {
+      round[field] = target.value;
+    }
+    state.result = null;
+    saveState();
+  }
+}
+
+// ============================================
+// Utils
+// ============================================
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// ============================================
+// Init
+// ============================================
+loadState();
+render();
