@@ -197,7 +197,7 @@ export function formatAmount(amount) {
 /**
  * 카카오톡 공유용 텍스트 포맷
  */
-export function formatResultText(participants, rounds, result, bankInfo = '') {
+export function formatResultText(participants, rounds, result, payerBankInfos = {}) {
     const { transfers } = result;
     const lines = [];
 
@@ -228,12 +228,19 @@ export function formatResultText(participants, rounds, result, bankInfo = '') {
     }
 
     lines.push('💸 송금 안내');
-    if (bankInfo.trim()) {
-        lines.push(`💳 ${bankInfo.trim()}`);
-    }
-    lines.push('');
-    transfers.forEach(t => {
-        lines.push(`  ${t.from} → ${formatAmount(t.amount)}`);
+
+    // 결제자별로 묶어서 표시
+    const payerIds = [...new Set(transfers.map(t => t.toId))];
+    payerIds.forEach(pid => {
+        const payer = participants.find(p => p.id === pid);
+        if (!payer) return;
+        const bankInfo = payerBankInfos[pid] || '';
+        lines.push('');
+        lines.push(`📌 ${payer.name}에게 보내주세요`);
+        if (bankInfo.trim()) lines.push(`💳 ${bankInfo.trim()}`);
+        transfers.filter(t => t.toId === pid).forEach(t => {
+            lines.push(`  ${t.from} → ${formatAmount(t.amount)}`);
+        });
     });
 
     return lines.join('\n');

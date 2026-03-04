@@ -8,7 +8,7 @@ import html2canvas from 'html2canvas';
 let state = {
   meetingName: '',
   meetingDate: new Date().toISOString().split('T')[0],
-  bankInfo: '',
+  payerBankInfos: {},  // { participantId: '계좌문자열' }
   participants: [],
   rounds: [],
   result: null,
@@ -46,7 +46,7 @@ function resetState() {
   state = {
     meetingName: '',
     meetingDate: new Date().toISOString().split('T')[0],
-    bankInfo: '',
+    payerBankInfos: {},
     participants: [],
     rounds: [],
     result: null,
@@ -225,7 +225,7 @@ function doCalculate() {
 
 function copyResult() {
   if (!state.result) return;
-  const text = formatResultText(state.participants, state.rounds, state.result, state.bankInfo);
+  const text = formatResultText(state.participants, state.rounds, state.result, state.payerBankInfos);
 
   // 모임 이름 추가
   const header = state.meetingName
@@ -249,7 +249,7 @@ function copyResult() {
 async function shareResult() {
   if (!state.result) return;
 
-  const text = formatResultText(state.participants, state.rounds, state.result, state.bankInfo);
+  const text = formatResultText(state.participants, state.rounds, state.result, state.payerBankInfos);
   const header = state.meetingName
     ? `📋 [${state.meetingName}] 정산 결과  ${state.meetingDate}\n\n`
     : `📋 정산 결과  ${state.meetingDate}\n\n`;
@@ -330,6 +330,7 @@ function render() {
     ${renderMeetingInfo()}
     ${renderParticipants()}
     ${renderRounds()}
+    ${renderPayerBankInfos()}
     ${renderCalculateButton()}
     ${state.result ? renderResult() : ''}
   `;
@@ -367,12 +368,38 @@ function renderMeetingInfo() {
           <label>날짜</label>
           <input type="date" id="meeting-date" value="${state.meetingDate}" />
         </div>
-        <div class="input-field mt-3">
-          <label>💳 계좌번호 <span class="text-muted text-sm">(결제자 본인)</span></label>
-          <input type="text" id="bank-info"
-                 value="${escapeHtml(state.bankInfo)}"
-                 placeholder="카카오뱅크 3333-01-1234567 홍길동" />
-        </div>
+      </div>
+    </section>
+  `;
+}
+
+function renderPayerBankInfos() {
+  // 차수에서 실제 결제자 목록 추출 (중복 제거)
+  const payerIds = [...new Set(state.rounds.map(r => r.payerId).filter(Boolean))];
+  if (payerIds.length === 0) return '';
+
+  const inputs = payerIds.map(pid => {
+    const p = state.participants.find(p => p.id === pid);
+    if (!p) return '';
+    return `
+      <div class="input-field mt-3">
+        <label>💳 ${escapeHtml(p.name)} 계좌</label>
+        <input type="text"
+               data-action="update-payer-bank" data-payer="${pid}"
+               value="${escapeHtml(state.payerBankInfos[pid] || '')}"
+               placeholder="카카오뱅크 3333-01-1234567 ${escapeHtml(p.name)}" />
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <section class="section" style="animation-delay: 0.08s">
+      <div class="section__title">
+        <i data-lucide="credit-card"></i>
+        <span>결제자 계좌</span>
+      </div>
+      <div class="card">
+        ${inputs}
       </div>
     </section>
   `;
@@ -673,13 +700,7 @@ function bindEvents() {
       saveState();
     });
   }
-  const bankInfoInput = document.getElementById('bank-info');
-  if (bankInfoInput) {
-    bankInfoInput.addEventListener('input', e => {
-      state.bankInfo = e.target.value;
-      saveState();
-    });
-  }
+
 
   // Delegated events
   document.getElementById('app').addEventListener('click', handleDelegatedClick);
@@ -749,6 +770,12 @@ function handleDelegatedChange(e) {
 function handleDelegatedInput(e) {
   const target = e.target.closest('[data-action]');
   if (!target) return;
+  if (target.dataset.action === 'update-payer-bank') {
+    state.payerBankInfos[target.dataset.payer] = target.value;
+    state.result = null;
+    saveState();
+    return;
+  }
   if (target.dataset.action === 'update-round') {
     const round = state.rounds.find(r => r.id === parseInt(target.dataset.round));
     if (!round) return;
