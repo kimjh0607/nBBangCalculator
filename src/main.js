@@ -420,6 +420,7 @@ function renderParticipants() {
         ${state.participants.length > 0 ? `<span class="text-muted text-sm">(${state.participants.length}명)</span>` : ''}
       </div>
       <div class="card">
+        <p class="text-muted text-sm mb-2">오늘 벙에 참여한 인원을 모두 추가하세요.<br>차수별 참여 여부는 아래 체크박스로 조정할 수 있어요.</p>
         <div class="input-group">
           <input type="text" id="participant-input"
                  placeholder="이름을 입력하고 Enter"
