@@ -267,13 +267,21 @@ async function shareResult() {
     const resultEl = document.getElementById('result-section');
     await document.fonts.ready;
 
-    const canvas = await html2canvas(resultEl, {
-      backgroundColor: '#0a0a14',
+    // 캡처용 래퍼에 패딩 추가
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:fixed;top:-9999px;left:-9999px;padding:24px;background:#0d1117;';
+    const clone = resultEl.cloneNode(true);
+    wrapper.appendChild(clone);
+    document.body.appendChild(wrapper);
+
+    const canvas = await html2canvas(wrapper, {
+      backgroundColor: '#0d1117',
       scale: 2,
       useCORS: true,
       logging: false,
-      windowWidth: resultEl.scrollWidth,
     });
+
+    document.body.removeChild(wrapper);
 
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
     const file = new File([blob], '정산결과.png', { type: 'image/png' });
@@ -350,16 +358,14 @@ function renderMeetingInfo() {
         <span>모임 정보</span>
       </div>
       <div class="card">
-        <div class="input-row">
-          <div class="input-field">
-            <label>모임 이름</label>
-            <input type="text" id="meeting-name" placeholder="예: 팀 회식"
-                   value="${escapeHtml(state.meetingName)}" />
-          </div>
-          <div class="input-field">
-            <label>날짜</label>
-            <input type="date" id="meeting-date" value="${state.meetingDate}" />
-          </div>
+        <div class="input-field">
+          <label>모임 이름</label>
+          <input type="text" id="meeting-name" placeholder="예: 팀 회식"
+                 value="${escapeHtml(state.meetingName)}" />
+        </div>
+        <div class="input-field mt-3">
+          <label>날짜</label>
+          <input type="date" id="meeting-date" value="${state.meetingDate}" />
         </div>
         <div class="input-field mt-3">
           <label>💳 계좌번호 <span class="text-muted text-sm">(결제자 본인)</span></label>
@@ -487,7 +493,7 @@ function renderRoundCard(round, idx) {
 
   // 차수에서 음주 구분 활성화 시 안내
   const drinkHint = round.splitDrink
-    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 = 음주 &nbsp; 🚫 = 비음주 &nbsp; (이름 옆 아이콘을 클릭하여 전환)</p>`
+    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 음주 &nbsp;·&nbsp; 🚫 비음주<br><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">(이름 옆 아이콘 클릭으로 전환)</span></p>`
     : '';
 
   return `
@@ -555,7 +561,7 @@ function renderCalculateButton() {
 }
 
 function renderResult() {
-  const { matrix, totals, notes, transfers } = state.result;
+  const { matrix, totals, notes } = state.result;
 
   // 테이블
   let tableHtml = '<table class="result-table"><thead><tr>';
@@ -587,37 +593,6 @@ function renderResult() {
   });
   tableHtml += '</tbody></table>';
 
-  // 송금 안내
-  const bankInfo = (state.bankInfo || '').trim();
-  const bankBanner = bankInfo ? `
-    <div class="bank-banner">
-      <div class="bank-banner__info">
-        <span class="bank-banner__label">💳 계좌번호</span>
-        <span class="bank-banner__value">${escapeHtml(bankInfo)}</span>
-      </div>
-      <button class="btn-copy-bank" data-action="copy-bank"
-              data-bank="${escapeHtml(bankInfo)}">
-        <i data-lucide="copy" style="width:13px;height:13px"></i>
-        복사
-      </button>
-    </div>
-  ` : '';
-
-  const transferHtml = transfers.length > 0
-    ? transfers.map((t, i) => `
-        <div class="transfer-item" style="animation-delay: ${0.1 * i}s">
-          <div class="transfer-item__main">
-            <span class="transfer-item__from">${escapeHtml(t.from)}</span>
-            <span class="transfer-item__arrow">
-              <i data-lucide="arrow-right" style="width:20px;height:20px"></i>
-            </span>
-            <span class="transfer-item__to">${escapeHtml(t.to)}</span>
-            <span class="transfer-item__amount">${formatAmount(t.amount)}</span>
-          </div>
-        </div>
-      `).join('')
-    : '<div class="empty-state"><p>모두 정산 완료!</p></div>';
-
   return `
     <section class="section" id="result-section" style="animation-delay: 0.1s">
       <div class="section__title">
@@ -626,15 +601,6 @@ function renderResult() {
       </div>
       <div class="result-table-wrap">
         ${tableHtml}
-      </div>
-
-      <div class="section__title mt-4">
-        <i data-lucide="send"></i>
-        <span>송금 안내</span>
-      </div>
-      ${bankBanner}
-      <div class="transfer-list">
-        ${transferHtml}
       </div>
 
       <div class="mt-4" style="display:flex;gap:var(--space-2)">

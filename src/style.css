@@ -5,37 +5,37 @@
 
 /* --- CSS Variables --- */
 :root {
-  /* Colors */
-  --bg-primary: #0a0a14;
-  --bg-secondary: #12121f;
-  --bg-card: rgba(255, 255, 255, 0.04);
-  --bg-card-hover: rgba(255, 255, 255, 0.07);
-  --bg-glass: rgba(255, 255, 255, 0.06);
-  --bg-glass-strong: rgba(255, 255, 255, 0.10);
-  --bg-input: rgba(255, 255, 255, 0.06);
-  --bg-input-focus: rgba(255, 255, 255, 0.10);
+  /* Colors — GitHub Dark Default */
+  --bg-primary: #0d1117;
+  --bg-secondary: #161b22;
+  --bg-card: #161b22;
+  --bg-card-hover: #1c2128;
+  --bg-glass: #161b22;
+  --bg-glass-strong: #1c2128;
+  --bg-input: #0d1117;
+  --bg-input-focus: #161b22;
 
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-medium: rgba(255, 255, 255, 0.12);
-  --border-focus: rgba(129, 108, 255, 0.5);
+  --border-subtle: #21262d;
+  --border-medium: #30363d;
+  --border-focus: rgba(56, 139, 253, 0.4);
 
-  --text-primary: #f0f0f5;
-  --text-secondary: #9a9ab0;
-  --text-tertiary: #6a6a80;
-  --text-inverse: #0a0a14;
+  --text-primary: #e6edf3;
+  --text-secondary: #8b949e;
+  --text-tertiary: #6e7681;
+  --text-inverse: #0d1117;
 
-  --accent-primary: #816cff;
-  --accent-secondary: #a78bfa;
-  --accent-gradient: linear-gradient(135deg, #816cff 0%, #a78bfa 50%, #e879a8 100%);
-  --accent-gradient-hover: linear-gradient(135deg, #6d57f0 0%, #9575f5 50%, #d66898 100%);
-  --accent-glow: rgba(129, 108, 255, 0.25);
+  --accent-primary: #58a6ff;
+  --accent-secondary: #79c0ff;
+  --accent-gradient: linear-gradient(135deg, #388bfd 0%, #79c0ff 100%);
+  --accent-gradient-hover: linear-gradient(135deg, #2d7dd2 0%, #58a6ff 100%);
+  --accent-glow: rgba(56, 139, 253, 0.2);
 
-  --success: #34d399;
-  --success-bg: rgba(52, 211, 153, 0.12);
-  --warning: #fbbf24;
-  --warning-bg: rgba(251, 191, 36, 0.12);
-  --danger: #f87171;
-  --danger-bg: rgba(248, 113, 113, 0.12);
+  --success: #3fb950;
+  --success-bg: rgba(63, 185, 80, 0.15);
+  --warning: #d29922;
+  --warning-bg: rgba(210, 153, 34, 0.15);
+  --danger: #f85149;
+  --danger-bg: rgba(248, 81, 73, 0.15);
 
   /* Typography */
   --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -102,18 +102,6 @@ body {
   overflow-x: hidden;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background: radial-gradient(circle at 30% 20%, rgba(129, 108, 255, 0.06) 0%, transparent 50%),
-    radial-gradient(circle at 70% 80%, rgba(232, 121, 168, 0.04) 0%, transparent 50%);
-  z-index: -1;
-  pointer-events: none;
-}
 
 /* --- App Container --- */
 #app {
@@ -168,11 +156,9 @@ body::before {
   color: var(--accent-primary);
 }
 
-/* --- Card (Glassmorphism) --- */
+/* --- Card --- */
 .card {
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
@@ -248,7 +234,7 @@ select:focus {
 select {
   cursor: pointer;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%239a9ab0' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 4 4 4-4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='20' height='20' fill='none' stroke='%238b949e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 40px;
@@ -304,7 +290,7 @@ select {
 }
 
 .btn--secondary:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--bg-card-hover);
   border-color: var(--border-medium);
 }
 
@@ -480,8 +466,8 @@ select {
 }
 
 .check-item--checked {
-  background: rgba(129, 108, 255, 0.12);
-  border-color: rgba(129, 108, 255, 0.3);
+  background: rgba(56, 139, 253, 0.1);
+  border-color: rgba(56, 139, 253, 0.3);
   color: var(--accent-secondary);
 }
 
@@ -554,7 +540,7 @@ select {
 }
 
 .drink-toggle--drinker {
-  background: rgba(129, 108, 255, 0.15);
+  background: rgba(56, 139, 253, 0.15);
   color: var(--accent-secondary);
 }
 
@@ -565,9 +551,7 @@ select {
 
 /* --- Round Card --- */
 .round-card {
-  background: var(--bg-glass);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
@@ -677,7 +661,7 @@ select {
 .result-table td {
   padding: var(--space-3) var(--space-4);
   text-align: right;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .result-table td:first-child {
@@ -690,7 +674,7 @@ select {
 }
 
 .result-table tr:hover td {
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--bg-card-hover);
 }
 
 .result-table .total-col {

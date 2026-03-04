@@ -219,10 +219,9 @@ export function formatResultText(participants, rounds, result, bankInfo = '') {
             : (round.totalAmount || 0);
         if (total === 0) return;
         grandTotal += total;
-        const per = count > 0 ? Math.round(total / count / 100) * 100 : 0;
         const payer = participants.find(p => p.id === round.payerId);
         const payerStr = payer ? ` · ${payer.name} 결제` : '';
-        lines.push(`${round.name}: ${formatAmount(total)} (${count}명, 1인 ${formatAmount(per)}${payerStr})`);
+        lines.push(`${round.name}: ${formatAmount(total)} (${count}명${payerStr})`);
     });
     if (rounds.length > 1) {
         lines.push(`총 합계: ${formatAmount(grandTotal)}`);
