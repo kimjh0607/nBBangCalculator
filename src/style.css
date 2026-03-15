@@ -140,6 +140,55 @@ body {
   margin-top: var(--space-1);
 }
 
+/* --- Guide Steps --- */
+.guide-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.guide-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.guide-step__num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--accent-gradient);
+  border-radius: 50%;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: white;
+  flex-shrink: 0;
+}
+
+.guide-step__label {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: center;
+  line-height: 1.4;
+}
+
+.guide-step__arrow {
+  width: 16px;
+  height: 16px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
 /* --- Section --- */
 .section {
   margin-bottom: var(--space-6);
@@ -535,13 +584,17 @@ select {
 /* --- Drink Toggle (per-round) --- */
 .drink-toggle {
   font-size: var(--font-size-xs);
-  padding: 2px 6px;
+  padding: 2px 8px;
   border-radius: var(--radius-full);
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
   margin-left: auto;
   transition: all var(--transition-fast);
   user-select: none;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
 }
 
 .drink-toggle:hover {
@@ -870,6 +923,14 @@ select {
   font-size: var(--font-size-sm);
 }
 
+.round-empty-state {
+  text-align: center;
+  padding: var(--space-6) var(--space-4);
+  color: var(--text-tertiary);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-3);
+}
+
 .empty-state__icon {
   font-size: 2rem;
   margin-bottom: var(--space-2);
@@ -1004,6 +1065,17 @@ input[type="number"] {
 
   .header {
     padding: var(--space-5) 0 var(--space-3);
+  }
+
+  .guide-steps {
+    padding: var(--space-3) var(--space-3);
+    gap: var(--space-1);
+  }
+
+  .guide-step__num {
+    width: 24px;
+    height: 24px;
+    font-size: var(--font-size-xs);
   }
 
   .header__logo {

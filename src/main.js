@@ -366,6 +366,22 @@ function renderHeader() {
         초기화
       </button>
     </header>
+    <div class="guide-steps">
+      <div class="guide-step">
+        <span class="guide-step__num">1</span>
+        <span class="guide-step__label">참여자<br>추가</span>
+      </div>
+      <i data-lucide="chevron-right" class="guide-step__arrow"></i>
+      <div class="guide-step">
+        <span class="guide-step__num">2</span>
+        <span class="guide-step__label">차수별<br>금액 입력</span>
+      </div>
+      <i data-lucide="chevron-right" class="guide-step__arrow"></i>
+      <div class="guide-step">
+        <span class="guide-step__num">3</span>
+        <span class="guide-step__label">정산하기<br>클릭</span>
+      </div>
+    </div>
   `;
 }
 
@@ -415,8 +431,10 @@ function renderPayerBankInfos() {
       <div class="section__title">
         <i data-lucide="credit-card"></i>
         <span>결제자 계좌</span>
+        <span class="text-muted text-sm">(선택)</span>
       </div>
       <div class="card">
+        <p class="text-muted text-sm mb-2">입력하면 정산 결과 공유 시 계좌번호가 함께 전송돼요.<br><span style="color:var(--text-tertiary)">건너뛰어도 정산 계산에는 영향 없어요.</span></p>
         ${inputs}
       </div>
     </section>
@@ -439,7 +457,7 @@ function renderParticipants() {
         ${state.participants.length > 0 ? `<span class="text-muted text-sm">(${state.participants.length}명)</span>` : ''}
       </div>
       <div class="card">
-        <p class="text-muted text-sm mb-2">오늘 벙에 참여한 인원을 모두 추가하세요.<br>차수별 참여 여부는 아래 체크박스로 조정할 수 있어요.</p>
+        <p class="text-muted text-sm mb-2">오늘 모임에 참여한 사람을 모두 추가하세요.<br><span style="color:var(--text-tertiary)">차수마다 빠진 사람이 있어도 괜찮아요. 나중에 체크박스로 조정할 수 있어요.</span></p>
         <div class="input-group">
           <input type="text" id="participant-input"
                  placeholder="이름을 입력하고 Enter"
@@ -465,18 +483,28 @@ function renderParticipants() {
 function renderRounds() {
   const roundCards = state.rounds.map((round, idx) => renderRoundCard(round, idx)).join('');
 
+  const emptyState = state.rounds.length === 0 ? `
+    <div class="card round-empty-state">
+      <div class="empty-state__icon">🧾</div>
+      <p style="font-weight:600;color:var(--text-secondary);margin-bottom:var(--space-1)">아직 추가된 차수가 없어요</p>
+      <p class="text-sm text-muted">1차 식당, 2차 술집처럼<br>자리가 바뀔 때마다 차수를 추가하세요.<br>한 곳만 갔다면 1차만 추가하면 돼요.</p>
+    </div>
+  ` : '';
+
   return `
     <section class="section" style="animation-delay: 0.15s">
       <div class="section__title">
         <i data-lucide="receipt"></i>
         <span>차수별 지출</span>
       </div>
+      ${emptyState}
       ${roundCards}
       <button class="btn btn--secondary btn--full" id="add-round-btn"
               ${state.participants.length === 0 ? 'disabled style="opacity:0.5;cursor:not-allowed"' : ''}>
         <i data-lucide="plus-circle"></i>
         차수 추가
       </button>
+      ${state.participants.length === 0 ? `<p class="text-muted text-sm" style="text-align:center;margin-top:var(--space-2)">참여자를 먼저 추가해야 차수를 추가할 수 있어요</p>` : ''}
     </section>
   `;
 }
@@ -492,6 +520,7 @@ function renderRoundCard(round, idx) {
     const isBeverager = beveragerIds.includes(p.id);
     const drinkStatus = isDrinker ? 'drinker' : isBeverager ? 'beverage' : 'sober';
     const drinkIcon = isDrinker ? '🍺' : isBeverager ? '🥤' : '🚫';
+    const drinkText = isDrinker ? '음주' : isBeverager ? '음료' : '없음';
     return `
       <label class="check-item ${checked ? 'check-item--checked' : ''}"
              data-action="toggle-round-participant"
@@ -505,8 +534,8 @@ function renderRoundCard(round, idx) {
           <span class="drink-toggle drink-toggle--${drinkStatus}"
                 data-action="cycle-round-drink"
                 data-round="${round.id}" data-participant="${p.id}"
-                title="클릭: 🍺 음주 → 🥤 음료 → 🚫 없음">
-            ${drinkIcon}
+                title="클릭해서 변경">
+            ${drinkIcon} ${drinkText}
           </span>
         ` : ''}
       </label>
@@ -548,7 +577,7 @@ function renderRoundCard(round, idx) {
 
   // 차수에서 음주 구분 활성화 시 안내
   const drinkHint = round.splitDrink
-    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 음주 &nbsp;·&nbsp; 🥤 음료 &nbsp;·&nbsp; 🚫 없음<br><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">(이름 옆 아이콘 클릭으로 순환 전환)</span></p>`
+    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px"><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">아이콘을 클릭할 때마다 순환돼요: 🍺 음주 → 🥤 음료 → 🚫 없음(음식만)</span></p>`
     : '';
 
   return `
@@ -567,8 +596,9 @@ function renderRoundCard(round, idx) {
 
       <div class="round-card__body">
         <div>
-          <div class="payer-select-wrap">
-            <label>💳 결제자</label>
+          <div>
+            <div class="round-card__field-label">💳 결제자</div>
+            <p class="text-muted text-sm" style="margin-bottom:var(--space-2)">이 자리에서 <strong style="color:var(--text-secondary)">실제로 카드·현금으로 계산한 사람</strong>을 선택하세요</p>
             <select data-action="update-round" data-round="${round.id}" data-field="payerId">
               ${payerOptions}
             </select>
@@ -579,7 +609,7 @@ function renderRoundCard(round, idx) {
           <div class="flex-between mb-2">
             <span class="round-card__field-label" style="margin-bottom:0">금액</span>
             <label class="toggle-wrap">
-              <span class="toggle-wrap__label">음주/비음주 구분</span>
+              <span class="toggle-wrap__label" title="술을 안 마시는 사람과 따로 계산하고 싶을 때 켜세요">음주/비음주 구분 <span style="font-size:var(--font-size-xs);color:var(--text-tertiary)">(?)</span></span>
               <span class="toggle">
                 <input type="checkbox" ${round.splitDrink ? 'checked' : ''}
                        data-action="toggle-split-drink" data-round="${round.id}" />
@@ -587,11 +617,13 @@ function renderRoundCard(round, idx) {
               </span>
             </label>
           </div>
+          ${!round.splitDrink ? `<p class="text-muted text-sm" style="margin-bottom:var(--space-2)">총 금액을 입력하면 참여자 수로 자동 1/N 계산해요</p>` : `<p class="text-muted text-sm" style="margin-bottom:var(--space-2)">음식·술·음료값을 따로 입력하면 음주 여부에 따라 나눠서 계산해요</p>`}
           ${amountInput}
         </div>
 
         <div>
           <div class="round-card__field-label">참여자</div>
+          <p class="text-muted text-sm" style="margin-bottom:var(--space-2)">${round.splitDrink ? '이 차수에 함께한 사람을 체크하고, 옆 아이콘을 눌러 음주 여부를 설정하세요' : '이 차수에 함께한 사람만 체크하세요'}</p>
           <div class="check-group">
             ${participantChecks}
           </div>
