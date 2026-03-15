@@ -532,7 +532,7 @@ function renderRoundCard(round, idx) {
     <div class="round-card" style="animation-delay: ${0.05 * idx}s">
       <div class="round-card__header">
         <div class="round-card__title">
-          <span class="round-card__number">${round.id}</span>
+          <span class="round-card__number">${idx + 1}</span>
           <input type="text" value="${escapeHtml(round.name)}"
                  data-action="update-round" data-round="${round.id}" data-field="name"
                  style="background:transparent;border:none;color:var(--text-primary);font-size:var(--font-size-lg);font-weight:700;font-family:var(--font-family);width:100px;padding:0" />
