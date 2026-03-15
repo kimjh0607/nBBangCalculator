@@ -32,24 +32,28 @@ export function calculateSettlement(participants, rounds) {
         let perPersonAmounts = {};
 
         if (round.splitDrink) {
-            // 음주/비음주 분리 계산 (차수별 drinkerIds 사용)
+            // 음주/음료/비음주 분리 계산
             const foodAmount = round.foodAmount || 0;
             const drinkAmount = round.drinkAmount || 0;
+            const beverageAmount = round.beverageAmount || 0;
             const drinkerIds = round.drinkerIds || [];
-            const drinkers = roundParticipants.filter(p => drinkerIds.includes(p.id));
-            const nonDrinkers = roundParticipants.filter(p => !drinkerIds.includes(p.id));
+            const beveragerIds = round.beveragerIds || [];
             const totalCount = roundParticipants.length;
-            const drinkerCount = drinkers.length;
+            const drinkerCount = roundParticipants.filter(p => drinkerIds.includes(p.id)).length;
+            const beveragerCount = roundParticipants.filter(p => beveragerIds.includes(p.id)).length;
 
             // 음식값은 전원 1/N
             const foodPerPerson = totalCount > 0 ? foodAmount / totalCount : 0;
-
             // 술값은 음주자만 1/N
             const drinkPerDrinker = drinkerCount > 0 ? drinkAmount / drinkerCount : 0;
+            // 음료값은 음료주문자만 1/N
+            const beveragePerBeverager = beveragerCount > 0 ? beverageAmount / beveragerCount : 0;
 
             roundParticipants.forEach(p => {
                 if (drinkerIds.includes(p.id)) {
                     perPersonAmounts[p.id] = foodPerPerson + drinkPerDrinker;
+                } else if (beveragerIds.includes(p.id)) {
+                    perPersonAmounts[p.id] = foodPerPerson + beveragePerBeverager;
                 } else {
                     perPersonAmounts[p.id] = foodPerPerson;
                 }
@@ -75,7 +79,7 @@ export function calculateSettlement(participants, rounds) {
 
         // 잔액 계산
         const totalPaid = round.splitDrink
-            ? (round.foodAmount || 0) + (round.drinkAmount || 0)
+            ? (round.foodAmount || 0) + (round.drinkAmount || 0) + (round.beverageAmount || 0)
             : (round.totalAmount || 0);
 
         roundParticipants.forEach(p => {
@@ -90,24 +94,34 @@ export function calculateSettlement(participants, rounds) {
 
     });
 
-    // 비고: 차수별 비음주자 표시
+    // 비고: 차수별 음료/비음주 표시
     participants.forEach(p => {
-        const soberRounds = rounds.filter(r =>
-            r.splitDrink &&
-            r.participantIds.includes(p.id) &&
-            !(r.drinkerIds || []).includes(p.id)
+        const splitRoundsForP = rounds.filter(r =>
+            r.splitDrink && r.participantIds.includes(p.id)
         );
-        const drinkRounds = rounds.filter(r =>
-            r.splitDrink &&
-            r.participantIds.includes(p.id) &&
-            (r.drinkerIds || []).includes(p.id)
+        if (splitRoundsForP.length === 0) return;
+
+        const beverageRounds = splitRoundsForP.filter(r =>
+            (r.beveragerIds || []).includes(p.id)
         );
-        if (soberRounds.length > 0 && drinkRounds.length > 0) {
-            // 일부 차수만 비음주
-            const soberNames = soberRounds.map(r => r.name || `${r.id}차`).join('·');
-            notes[p.id].push(`${soberNames} 비음주`);
-        } else if (soberRounds.length > 0 && drinkRounds.length === 0) {
-            notes[p.id].push('비음주');
+        const soberRounds = splitRoundsForP.filter(r =>
+            !(r.drinkerIds || []).includes(p.id) &&
+            !(r.beveragerIds || []).includes(p.id)
+        );
+
+        if (beverageRounds.length > 0) {
+            const allBeverage = beverageRounds.length === splitRoundsForP.length;
+            notes[p.id].push(allBeverage
+                ? '음료'
+                : `${beverageRounds.map(r => r.name || `${r.id}차`).join('·')} 음료`
+            );
+        }
+        if (soberRounds.length > 0) {
+            const allSober = soberRounds.length === splitRoundsForP.length;
+            notes[p.id].push(allSober
+                ? '비음주'
+                : `${soberRounds.map(r => r.name || `${r.id}차`).join('·')} 비음주`
+            );
         }
     });
 
@@ -207,7 +221,7 @@ export function formatResultText(participants, rounds, result, payerBankInfos = 
     rounds.forEach(round => {
         const count = round.participantIds.length;
         const total = round.splitDrink
-            ? (round.foodAmount || 0) + (round.drinkAmount || 0)
+            ? (round.foodAmount || 0) + (round.drinkAmount || 0) + (round.beverageAmount || 0)
             : (round.totalAmount || 0);
         if (total === 0) return;
         grandTotal += total;

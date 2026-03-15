@@ -101,6 +101,8 @@ function removeParticipant(id) {
   // 차수에서도 제거
   state.rounds.forEach(r => {
     r.participantIds = r.participantIds.filter(pid => pid !== id);
+    r.drinkerIds = (r.drinkerIds || []).filter(pid => pid !== id);
+    r.beveragerIds = (r.beveragerIds || []).filter(pid => pid !== id);
     if (r.payerId === id) r.payerId = null;
   });
   state.result = null;
@@ -108,14 +110,24 @@ function removeParticipant(id) {
   render();
 }
 
-function toggleRoundDrinker(roundId, participantId) {
+function cycleRoundDrinkStatus(roundId, participantId) {
   const round = state.rounds.find(r => r.id === roundId);
   if (!round) return;
   if (!round.drinkerIds) round.drinkerIds = [];
-  const idx = round.drinkerIds.indexOf(participantId);
-  if (idx >= 0) {
-    round.drinkerIds.splice(idx, 1);
+  if (!round.beveragerIds) round.beveragerIds = [];
+
+  const isDrinker = round.drinkerIds.includes(participantId);
+  const isBeverager = round.beveragerIds.includes(participantId);
+
+  if (isDrinker) {
+    // 🍺 → 🥤
+    round.drinkerIds = round.drinkerIds.filter(id => id !== participantId);
+    round.beveragerIds.push(participantId);
+  } else if (isBeverager) {
+    // 🥤 → 🚫
+    round.beveragerIds = round.beveragerIds.filter(id => id !== participantId);
   } else {
+    // 🚫 → 🍺
     round.drinkerIds.push(participantId);
   }
   state.result = null;
@@ -138,10 +150,12 @@ function addRound() {
     totalAmount: 0,
     foodAmount: 0,
     drinkAmount: 0,
+    beverageAmount: 0,
     splitDrink: false,
     payerId: state.participants.length > 0 ? state.participants[0].id : null,
     participantIds: defaultParticipants,
-    drinkerIds: [...defaultParticipants]  // 기본: 전원 음주
+    drinkerIds: [...defaultParticipants],  // 기본: 전원 음주
+    beveragerIds: [],
   });
   state.result = null;
   saveState();
@@ -166,7 +180,7 @@ function updateRound(roundId, field, value) {
   const round = state.rounds.find(r => r.id === roundId);
   if (!round) return;
 
-  if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount') {
+  if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount' || field === 'beverageAmount') {
     round[field] = parseInt(value) || 0;
   } else if (field === 'splitDrink') {
     round[field] = value;
@@ -469,11 +483,15 @@ function renderRounds() {
 
 function renderRoundCard(round, idx) {
   const drinkerIds = round.drinkerIds || [];
+  const beveragerIds = round.beveragerIds || [];
 
   // 참여자 체크리스트
   const participantChecks = state.participants.map(p => {
     const checked = round.participantIds.includes(p.id);
     const isDrinker = drinkerIds.includes(p.id);
+    const isBeverager = beveragerIds.includes(p.id);
+    const drinkStatus = isDrinker ? 'drinker' : isBeverager ? 'beverage' : 'sober';
+    const drinkIcon = isDrinker ? '🍺' : isBeverager ? '🥤' : '🚫';
     return `
       <label class="check-item ${checked ? 'check-item--checked' : ''}"
              data-action="toggle-round-participant"
@@ -484,11 +502,11 @@ function renderRoundCard(round, idx) {
         </span>
         <span>${escapeHtml(p.name)}</span>
         ${round.splitDrink && checked ? `
-          <span class="drink-toggle ${isDrinker ? 'drink-toggle--drinker' : 'drink-toggle--sober'}"
-                data-action="toggle-round-drinker"
+          <span class="drink-toggle drink-toggle--${drinkStatus}"
+                data-action="cycle-round-drink"
                 data-round="${round.id}" data-participant="${p.id}"
-                title="클릭하여 음주/비음주 전환">
-            ${isDrinker ? '🍺' : '🚫'}
+                title="클릭: 🍺 음주 → 🥤 음료 → 🚫 없음">
+            ${drinkIcon}
           </span>
         ` : ''}
       </label>
@@ -513,6 +531,11 @@ function renderRoundCard(round, idx) {
           <input type="number" data-action="update-round" data-round="${round.id}" data-field="drinkAmount"
                  value="${round.drinkAmount || ''}" placeholder="0" inputmode="numeric" />
         </div>
+        <div class="input-field">
+          <label>🥤 음료값</label>
+          <input type="number" data-action="update-round" data-round="${round.id}" data-field="beverageAmount"
+                 value="${round.beverageAmount || ''}" placeholder="0" inputmode="numeric" />
+        </div>
       </div>
     `
     : `
@@ -525,7 +548,7 @@ function renderRoundCard(round, idx) {
 
   // 차수에서 음주 구분 활성화 시 안내
   const drinkHint = round.splitDrink
-    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 음주 &nbsp;·&nbsp; 🚫 비음주<br><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">(이름 옆 아이콘 클릭으로 전환)</span></p>`
+    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px">🍺 음주 &nbsp;·&nbsp; 🥤 음료 &nbsp;·&nbsp; 🚫 없음<br><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">(이름 옆 아이콘 클릭으로 순환 전환)</span></p>`
     : '';
 
   return `
@@ -720,10 +743,10 @@ function handleDelegatedClick(e) {
     case 'remove-participant':
       removeParticipant(target.dataset.id);
       break;
-    case 'toggle-round-drinker':
+    case 'cycle-round-drink':
       e.preventDefault();
       e.stopPropagation();
-      toggleRoundDrinker(parseInt(target.dataset.round), target.dataset.participant);
+      cycleRoundDrinkStatus(parseInt(target.dataset.round), target.dataset.participant);
       break;
     case 'toggle-round-participant':
       e.preventDefault();
@@ -782,7 +805,7 @@ function handleDelegatedInput(e) {
     const round = state.rounds.find(r => r.id === parseInt(target.dataset.round));
     if (!round) return;
     const field = target.dataset.field;
-    if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount') {
+    if (field === 'totalAmount' || field === 'foodAmount' || field === 'drinkAmount' || field === 'beverageAmount') {
       round[field] = parseInt(target.value) || 0;
     } else if (field === 'name') {
       round[field] = target.value;

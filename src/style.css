@@ -626,10 +626,10 @@ select {
   margin-bottom: var(--space-2);
 }
 
-/* Split input row for food/drink */
+/* Split input row for food/drink/beverage */
 .split-input {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: var(--space-3);
 }
 
