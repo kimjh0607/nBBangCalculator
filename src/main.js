@@ -125,6 +125,7 @@ function toggleRoundDrinker(roundId, participantId) {
 
 function addRound() {
   const roundNum = genRoundId();
+  const displayNum = state.rounds.length + 1;
   // 이전 차수 참여자를 기본 체크
   const prevRound = state.rounds[state.rounds.length - 1];
   const defaultParticipants = prevRound
@@ -133,7 +134,7 @@ function addRound() {
 
   state.rounds.push({
     id: roundNum,
-    name: `${roundNum}차`,
+    name: `${displayNum}차`,
     totalAmount: 0,
     foodAmount: 0,
     drinkAmount: 0,
@@ -346,6 +347,10 @@ function renderHeader() {
     <header class="header">
       <h1 class="header__logo">nBBangCalculator</h1>
       <p class="header__sub">모임 정산, 5분이면 끝</p>
+      <button class="btn btn--danger btn--sm header__reset" id="reset-btn">
+        <i data-lucide="rotate-ccw"></i>
+        초기화
+      </button>
     </header>
   `;
 }
@@ -640,10 +645,6 @@ function renderResult() {
           공유하기
         </button>
       </div>
-      <button class="btn btn--danger btn--full mt-3" id="reset-btn">
-        <i data-lucide="rotate-ccw"></i>
-        새 정산 시작
-      </button>
     </section>
   `;
 }

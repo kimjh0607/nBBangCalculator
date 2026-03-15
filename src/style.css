@@ -115,6 +115,13 @@ body {
 .header {
   text-align: center;
   padding: var(--space-8) 0 var(--space-6);
+  position: relative;
+}
+
+.header__reset {
+  position: absolute;
+  top: var(--space-8);
+  right: 0;
 }
 
 .header__logo {
