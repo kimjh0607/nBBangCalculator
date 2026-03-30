@@ -363,19 +363,26 @@ async function shareResult() {
     const file = new File([blob], '정산결과.png', { type: 'image/png' });
 
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      // 모바일: 네이티브 공유 시트 (이미지 파일 포함)
       await navigator.share({ files: [file], text: fullText });
-    } else if (navigator.share) {
-      await navigator.share({ text: fullText });
     } else {
-      // PC 폴백: 이미지 다운로드 + 텍스트 복사
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = '정산결과.png';
-      a.click();
-      URL.revokeObjectURL(url);
-      navigator.clipboard.writeText(fullText).catch(() => {});
-      showToast('이미지 저장 + 텍스트 복사 완료!');
+      // PC / 파일 공유 미지원: 이미지를 클립보드에 직접 복사
+      try {
+        await navigator.clipboard.write([
+          new ClipboardItem({ 'image/png': blob })
+        ]);
+        showToast('이미지가 클립보드에 복사됐어요! 채팅창에 붙여넣기하세요.');
+      } catch (clipErr) {
+        // ClipboardItem 미지원 브라우저 → 이미지 다운로드 + 텍스트 복사
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '정산결과.png';
+        a.click();
+        URL.revokeObjectURL(url);
+        navigator.clipboard.writeText(fullText).catch(() => {});
+        showToast('이미지 저장됨! 채팅창에 파일로 첨부해주세요.');
+      }
     }
   } catch (err) {
     if (err?.name !== 'AbortError') {
