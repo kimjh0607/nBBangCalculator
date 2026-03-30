@@ -841,6 +841,42 @@ function renderResult() {
   });
   tableHtml += '</tbody></table>';
 
+  // 송금 내역
+  const { transfers } = state.result;
+  let transferHtml = '';
+  if (transfers.length === 0) {
+    transferHtml = `<div class="transfer-done"><i data-lucide="check-circle"></i> 모두 정산 완료!</div>`;
+  } else {
+    // 받는 사람 기준으로 묶기
+    const payeeIds = [...new Set(transfers.map(t => t.toId))];
+    transferHtml = `<div class="transfer-list">` + payeeIds.map(pid => {
+      const bankInfo = state.payerBankInfos[pid] || '';
+      const myTransfers = transfers.filter(t => t.toId === pid);
+      const rows = myTransfers.map(t => `
+        <div class="transfer-item__row">
+          <span class="transfer-item__from">${escapeHtml(t.from)}</span>
+          <i data-lucide="arrow-right" style="width:14px;height:14px;color:var(--accent-primary);flex-shrink:0"></i>
+          <span class="transfer-item__to">${escapeHtml(t.to)}</span>
+          <span class="transfer-item__amount amount">${formatAmount(t.amount)}</span>
+        </div>
+      `).join('');
+      const bankRow = bankInfo.trim() ? `
+        <div class="transfer-item__bank">
+          <div class="bank-banner">
+            <div class="bank-banner__info">
+              <span class="bank-banner__label">계좌번호</span>
+              <span class="bank-banner__value">${escapeHtml(bankInfo.trim())}</span>
+            </div>
+            <button class="btn-copy-bank" data-action="copy-bank" data-bank="${escapeHtml(bankInfo.trim())}">
+              <i data-lucide="copy" style="width:12px;height:12px"></i> 복사
+            </button>
+          </div>
+        </div>
+      ` : '';
+      return `<div class="transfer-item">${rows}${bankRow}</div>`;
+    }).join('') + `</div>`;
+  }
+
   return `
     <section class="section" id="result-section" style="animation-delay: 0.1s">
       <div class="section__title">
@@ -850,6 +886,12 @@ function renderResult() {
       <div class="result-table-wrap">
         ${tableHtml}
       </div>
+
+      <div class="section__title mt-4">
+        <i data-lucide="send"></i>
+        <span>송금 내역</span>
+      </div>
+      ${transferHtml}
 
       <div class="mt-4" style="display:flex;gap:var(--space-2)">
         <button class="btn btn--secondary btn--full" id="copy-result-btn">
