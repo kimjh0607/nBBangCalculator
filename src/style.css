@@ -1191,6 +1191,39 @@ input[type="number"] {
   font-variant-numeric: tabular-nums;
 }
 
+/* --- Cell status badges (result table) --- */
+.cell-status-badges {
+  display: inline-flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+
+.cell-status-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: var(--radius-full);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.cell-status-badge--beverage {
+  background: rgba(56, 139, 253, 0.15);
+  color: var(--accent-secondary);
+}
+
+.cell-status-badge--sober {
+  background: rgba(52, 211, 153, 0.12);
+  color: #3fb950;
+}
+
+.cell-status-badge--nofood {
+  background: rgba(248, 81, 73, 0.12);
+  color: var(--danger);
+}
+
 /* --- Attend-only badge (result table) --- */
 .attend-only-badge {
   display: inline-block;

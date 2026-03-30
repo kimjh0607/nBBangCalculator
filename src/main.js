@@ -332,67 +332,67 @@ async function shareResult() {
     lucide.createIcons({ nodes: [shareBtn] });
   }
 
-  try {
-    const receiptEl = document.getElementById('receipt-summary-section');
-    const resultEl = document.getElementById('result-section');
-    await document.fonts.ready;
-
-    // 캡처용 래퍼에 패딩 추가
+  // 이미지 캡처 시도 (html2canvas 로드된 경우에만)
+  let blob = null;
+  if (typeof html2canvas !== 'undefined') {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:fixed;top:-9999px;left:-9999px;padding:24px;background:#0d1117;min-width:360px;';
-    if (receiptEl) {
-      const receiptClone = receiptEl.cloneNode(true);
-      receiptClone.style.animation = 'none';
-      wrapper.appendChild(receiptClone);
+    try {
+      const receiptEl = document.getElementById('receipt-summary-section');
+      const resultEl = document.getElementById('result-section');
+      await document.fonts.ready;
+      if (receiptEl) {
+        const rc = receiptEl.cloneNode(true);
+        rc.style.animation = 'none';
+        wrapper.appendChild(rc);
+      }
+      const rc2 = resultEl.cloneNode(true);
+      rc2.style.animation = 'none';
+      wrapper.appendChild(rc2);
+      document.body.appendChild(wrapper);
+      const canvas = await html2canvas(wrapper, {
+        backgroundColor: '#0d1117', scale: 2, useCORS: true, logging: false,
+      });
+      blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+    } catch (_) {
+      // 캡처 실패 → blob null 유지, 아래에서 텍스트 공유로 폴백
+    } finally {
+      if (wrapper.parentNode) document.body.removeChild(wrapper);
     }
-    const clone = resultEl.cloneNode(true);
-    clone.style.animation = 'none';
-    wrapper.appendChild(clone);
-    document.body.appendChild(wrapper);
+  }
 
-    const canvas = await html2canvas(wrapper, {
-      backgroundColor: '#0d1117',
-      scale: 2,
-      useCORS: true,
-      logging: false,
-    });
-
-    document.body.removeChild(wrapper);
-
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-    const file = new File([blob], '정산결과.png', { type: 'image/png' });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      // 모바일: 네이티브 공유 시트 (이미지 파일 포함)
-      await navigator.share({ files: [file], text: fullText });
+  try {
+    if (blob) {
+      const file = new File([blob], '정산결과.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        // 모바일: 네이티브 공유 시트 (이미지 파일 포함)
+        await navigator.share({ files: [file], text: fullText });
+      } else {
+        // PC: 이미지를 클립보드에 직접 복사
+        try {
+          await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+          showToast('이미지가 클립보드에 복사됐어요! 채팅창에 붙여넣기하세요.');
+        } catch (_) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url; a.download = '정산결과.png'; a.click();
+          URL.revokeObjectURL(url);
+          navigator.clipboard.writeText(fullText).catch(() => {});
+          showToast('이미지 저장됨! 채팅창에 파일로 첨부해주세요.');
+        }
+      }
     } else {
-      // PC / 파일 공유 미지원: 이미지를 클립보드에 직접 복사
-      try {
-        await navigator.clipboard.write([
-          new ClipboardItem({ 'image/png': blob })
-        ]);
-        showToast('이미지가 클립보드에 복사됐어요! 채팅창에 붙여넣기하세요.');
-      } catch (clipErr) {
-        // ClipboardItem 미지원 브라우저 → 이미지 다운로드 + 텍스트 복사
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '정산결과.png';
-        a.click();
-        URL.revokeObjectURL(url);
-        navigator.clipboard.writeText(fullText).catch(() => {});
-        showToast('이미지 저장됨! 채팅창에 파일로 첨부해주세요.');
+      // 이미지 없이 텍스트 공유
+      if (navigator.share) {
+        await navigator.share({ text: fullText });
+      } else {
+        await navigator.clipboard.writeText(fullText);
+        showToast('클립보드에 복사되었습니다!');
       }
     }
   } catch (err) {
     if (err?.name !== 'AbortError') {
-      // 이미지 캡처 실패 시 텍스트만 공유
-      if (navigator.share) {
-        navigator.share({ text: fullText }).catch(() => {});
-      } else {
-        navigator.clipboard.writeText(fullText).catch(() => {});
-        showToast('클립보드에 복사되었습니다!');
-      }
+      showToast('공유에 실패했어요. 복사 버튼을 이용해주세요.', 'info');
     }
   } finally {
     if (shareBtn && originalHtml) {
@@ -817,7 +817,7 @@ function renderResult() {
   state.rounds.forEach(r => {
     tableHtml += `<th>${escapeHtml(r.name)}</th>`;
   });
-  tableHtml += '<th>총합</th><th style="text-align:left">비고</th></tr></thead><tbody>';
+  tableHtml += '<th>총합</th></tr></thead><tbody>';
 
   state.participants.forEach(p => {
     tableHtml += '<tr>';
@@ -825,18 +825,18 @@ function renderResult() {
     state.rounds.forEach(r => {
       const val = matrix[p.id][r.id];
       const isPayer = r.payerId === p.id;
+      const statusBadge = getRoundStatusBadge(r, p.id);
       if (val === null) {
         tableHtml += '<td class="not-participated">-</td>';
       } else if (isPayer) {
-        tableHtml += `<td class="amount payer-cell">${formatAmount(val)}<span class="payer-chip">결제</span></td>`;
+        tableHtml += `<td class="amount payer-cell">${formatAmount(val)}<span class="payer-chip">결제</span>${statusBadge}</td>`;
       } else if (val === 0) {
         tableHtml += '<td><span class="attend-only-badge">참석만</span></td>';
       } else {
-        tableHtml += `<td class="amount">${formatAmount(val)}</td>`;
+        tableHtml += `<td class="amount">${formatAmount(val)}${statusBadge}</td>`;
       }
     });
     tableHtml += `<td class="total-col amount">${formatAmount(totals[p.id])}</td>`;
-    tableHtml += `<td class="note-col">${escapeHtml((notes[p.id] || []).join(', '))}</td>`;
     tableHtml += '</tr>';
   });
   tableHtml += '</tbody></table>';
@@ -1034,6 +1034,23 @@ function handleDelegatedInput(e) {
 // ============================================
 // Utils
 // ============================================
+function getRoundStatusBadge(round, participantId) {
+  if (!round.splitDrink || !round.participantIds.includes(participantId)) return '';
+  const isDrinker = (round.drinkerIds || []).includes(participantId);
+  const isBeverager = (round.beveragerIds || []).includes(participantId);
+  const noFood = (round.noFoodIds || []).includes(participantId);
+
+  // 참석만(noFood+비음주)은 val===0으로 이미 처리됨
+  if (noFood && !isDrinker && !isBeverager) return '';
+
+  const tags = [];
+  if (isBeverager) tags.push('<span class="cell-status-badge cell-status-badge--beverage">음료</span>');
+  else if (!isDrinker) tags.push('<span class="cell-status-badge cell-status-badge--sober">비음주</span>');
+  if (noFood) tags.push('<span class="cell-status-badge cell-status-badge--nofood">음식X</span>');
+
+  return tags.length ? `<br><span class="cell-status-badges">${tags.join('')}</span>` : '';
+}
+
 function escapeHtml(str) {
   if (!str) return '';
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
