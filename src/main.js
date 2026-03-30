@@ -362,13 +362,18 @@ async function shareResult() {
   }
 
   try {
-    if (blob) {
-      const file = new File([blob], '정산결과.png', { type: 'image/png' });
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        // 모바일: 네이티브 공유 시트 (이미지 파일 포함)
-        await navigator.share({ files: [file], text: fullText });
+    if (navigator.share) {
+      // ── 모바일: navigator.share 계열로만 처리 ──
+      if (blob && navigator.canShare && navigator.canShare({ files: [new File([blob], '정산결과.png', { type: 'image/png' })] })) {
+        // 이미지 파일 공유 지원 → 이미지 + 텍스트
+        await navigator.share({ files: [new File([blob], '정산결과.png', { type: 'image/png' })], text: fullText });
       } else {
-        // PC: 이미지를 클립보드에 직접 복사
+        // 파일 공유 미지원 or 캡처 실패 → 텍스트만 공유 (항상 성공)
+        await navigator.share({ text: fullText });
+      }
+    } else {
+      // ── PC: 이미지를 클립보드에 복사 ──
+      if (blob) {
         try {
           await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
           showToast('이미지가 클립보드에 복사됐어요! 채팅창에 붙여넣기하세요.');
@@ -380,11 +385,6 @@ async function shareResult() {
           navigator.clipboard.writeText(fullText).catch(() => {});
           showToast('이미지 저장됨! 채팅창에 파일로 첨부해주세요.');
         }
-      }
-    } else {
-      // 이미지 없이 텍스트 공유
-      if (navigator.share) {
-        await navigator.share({ text: fullText });
       } else {
         await navigator.clipboard.writeText(fullText);
         showToast('클립보드에 복사되었습니다!');
@@ -392,7 +392,9 @@ async function shareResult() {
     }
   } catch (err) {
     if (err?.name !== 'AbortError') {
-      showToast('공유에 실패했어요. 복사 버튼을 이용해주세요.', 'info');
+      // 마지막 폴백: 텍스트 클립보드 복사
+      navigator.clipboard.writeText(fullText).catch(() => {});
+      showToast('클립보드에 복사되었습니다!');
     }
   } finally {
     if (shareBtn && originalHtml) {
