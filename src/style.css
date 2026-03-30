@@ -1190,3 +1190,170 @@ input[type="number"] {
 .amount {
   font-variant-numeric: tabular-nums;
 }
+
+/* --- Receipt Input (round card) --- */
+.receipt-input-section {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.receipt-input-section__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.receipt-items-header {
+  display: grid;
+  grid-template-columns: 1fr 60px 90px 70px 28px;
+  gap: var(--space-2);
+  padding: 0 var(--space-1);
+  margin-bottom: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-tertiary);
+  font-weight: 500;
+}
+
+.receipt-items-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.receipt-item-row {
+  display: grid;
+  grid-template-columns: 1fr 60px 90px 70px 28px;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.receipt-item__name,
+.receipt-item__qty,
+.receipt-item__price {
+  padding: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.receipt-item__total {
+  font-size: var(--font-size-xs);
+  color: var(--text-secondary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.receipt-item__remove {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  font-size: 18px;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.receipt-item__remove:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.receipt-items-subtotal {
+  margin-top: var(--space-2);
+  text-align: right;
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  padding-right: calc(28px + var(--space-2) + 70px + var(--space-2));
+}
+
+/* --- Receipt Summary (result view) --- */
+.receipt-summary-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.receipt-summary__round {
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.receipt-summary__round:last-child {
+  border-bottom: none;
+}
+
+.receipt-summary__round-title {
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  color: var(--accent-secondary);
+  margin-bottom: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.receipt-summary__round-title::before {
+  content: '';
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: var(--accent-gradient);
+  border-radius: 2px;
+}
+
+.receipt-summary__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--font-size-sm);
+}
+
+.receipt-summary__name {
+  flex: 1;
+  color: var(--text-primary);
+}
+
+.receipt-summary__qty {
+  color: var(--text-tertiary);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.receipt-summary__price {
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  min-width: 70px;
+  text-align: right;
+}
+
+.receipt-summary__subtotal {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--border-subtle);
+  font-size: var(--font-size-sm);
+  color: var(--text-secondary);
+  gap: var(--space-2);
+}
+
+.receipt-summary__subtotal strong {
+  color: var(--text-primary);
+}
+
+@media (max-width: 480px) {
+  .receipt-items-header,
+  .receipt-item-row {
+    grid-template-columns: 1fr 50px 80px 65px 28px;
+  }
+
+  .receipt-items-subtotal {
+    padding-right: calc(28px + var(--space-2) + 65px + var(--space-2));
+  }
+}

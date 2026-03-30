@@ -1,6 +1,6 @@
 import './style.css';
 import { calculateSettlement, formatAmount, formatResultText } from './calculator.js';
-import html2canvas from 'html2canvas';
+// html2canvas loaded via CDN (index.html)
 
 // ============================================
 // State
@@ -156,6 +156,8 @@ function addRound() {
     participantIds: defaultParticipants,
     drinkerIds: [...defaultParticipants],  // 기본: 전원 음주
     beveragerIds: [],
+    receiptItems: [],
+    nextReceiptItemId: 1,
   });
   state.result = null;
   saveState();
@@ -167,6 +169,37 @@ function addRound() {
     const last = cards[cards.length - 1];
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 100);
+}
+
+function addReceiptItem(roundId) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  if (!round.receiptItems) round.receiptItems = [];
+  if (!round.nextReceiptItemId) round.nextReceiptItemId = 1;
+  round.receiptItems.push({ id: round.nextReceiptItemId++, name: '', quantity: 1, unitPrice: 0 });
+  saveState();
+  render();
+}
+
+function removeReceiptItem(roundId, itemId) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  round.receiptItems = (round.receiptItems || []).filter(i => i.id !== parseInt(itemId));
+  saveState();
+  render();
+}
+
+function updateReceiptItem(roundId, itemId, field, value) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  const item = (round.receiptItems || []).find(i => i.id === parseInt(itemId));
+  if (!item) return;
+  if (field === 'quantity' || field === 'unitPrice') {
+    item[field] = parseInt(value) || 0;
+  } else {
+    item[field] = value;
+  }
+  saveState();
 }
 
 function removeRound(roundId) {
@@ -278,13 +311,20 @@ async function shareResult() {
   }
 
   try {
+    const receiptEl = document.getElementById('receipt-summary-section');
     const resultEl = document.getElementById('result-section');
     await document.fonts.ready;
 
     // 캡처용 래퍼에 패딩 추가
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'position:fixed;top:-9999px;left:-9999px;padding:24px;background:#0d1117;';
+    wrapper.style.cssText = 'position:fixed;top:-9999px;left:-9999px;padding:24px;background:#0d1117;min-width:360px;';
+    if (receiptEl) {
+      const receiptClone = receiptEl.cloneNode(true);
+      receiptClone.style.animation = 'none';
+      wrapper.appendChild(receiptClone);
+    }
     const clone = resultEl.cloneNode(true);
+    clone.style.animation = 'none';
     wrapper.appendChild(clone);
     document.body.appendChild(wrapper);
 
@@ -346,6 +386,7 @@ function render() {
     ${renderRounds()}
     ${renderPayerBankInfos()}
     ${renderCalculateButton()}
+    ${state.result ? renderReceiptSummary() : ''}
     ${state.result ? renderResult() : ''}
   `;
 
@@ -629,8 +670,92 @@ function renderRoundCard(round, idx) {
           </div>
           ${drinkHint}
         </div>
+
+        ${renderReceiptItemsInput(round)}
       </div>
     </div>
+  `;
+}
+
+function renderReceiptItemsInput(round) {
+  const items = round.receiptItems || [];
+  const rows = items.map(item => {
+    const total = (item.quantity || 0) * (item.unitPrice || 0);
+    return `
+      <div class="receipt-item-row">
+        <input type="text" class="receipt-item__name"
+               data-action="update-receipt-item" data-round="${round.id}" data-item="${item.id}" data-field="name"
+               value="${escapeHtml(item.name)}" placeholder="항목명" />
+        <input type="number" class="receipt-item__qty"
+               data-action="update-receipt-item" data-round="${round.id}" data-item="${item.id}" data-field="quantity"
+               value="${item.quantity || ''}" placeholder="수량" inputmode="numeric" />
+        <input type="number" class="receipt-item__price"
+               data-action="update-receipt-item" data-round="${round.id}" data-item="${item.id}" data-field="unitPrice"
+               value="${item.unitPrice || ''}" placeholder="단가" inputmode="numeric" />
+        <span class="receipt-item__total amount">${total > 0 ? formatAmount(total) : '-'}</span>
+        <button class="receipt-item__remove" data-action="remove-receipt-item" data-round="${round.id}" data-item="${item.id}" title="삭제">×</button>
+      </div>
+    `;
+  }).join('');
+
+  const subtotal = items.reduce((sum, i) => sum + (i.quantity || 0) * (i.unitPrice || 0), 0);
+
+  return `
+    <div class="receipt-input-section">
+      <div class="receipt-input-section__header">
+        <span class="round-card__field-label" style="margin-bottom:0">🧾 영수증 항목 <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--text-tertiary)">(선택)</span></span>
+        <button class="btn btn--secondary btn--sm" data-action="add-receipt-item" data-round="${round.id}">
+          <i data-lucide="plus" style="width:12px;height:12px"></i> 항목 추가
+        </button>
+      </div>
+      ${items.length === 0
+        ? `<p class="text-muted text-sm" style="margin-top:var(--space-2)">항목을 추가하면 공유 시 영수증 내역이 함께 전송돼요.</p>`
+        : `
+          <div class="receipt-items-header">
+            <span>항목명</span><span>수량</span><span>단가</span><span>합계</span><span></span>
+          </div>
+          <div class="receipt-items-list">${rows}</div>
+          <div class="receipt-items-subtotal">소계 <strong class="amount">${formatAmount(subtotal)}</strong></div>
+        `
+      }
+    </div>
+  `;
+}
+
+function renderReceiptSummary() {
+  const roundsWithItems = state.rounds.filter(r =>
+    (r.receiptItems || []).some(i => i.name || i.unitPrice > 0)
+  );
+  if (roundsWithItems.length === 0) return '';
+
+  const summaries = roundsWithItems.map(round => {
+    const items = (round.receiptItems || []).filter(i => i.name || i.unitPrice > 0);
+    const subtotal = items.reduce((sum, i) => sum + (i.quantity || 0) * (i.unitPrice || 0), 0);
+    const rows = items.map(item => `
+      <div class="receipt-summary__row">
+        <span class="receipt-summary__name">${escapeHtml(item.name || '(항목)')}</span>
+        <span class="receipt-summary__qty">${item.quantity || 0}개</span>
+        <span class="receipt-summary__price amount">${formatAmount((item.quantity || 0) * (item.unitPrice || 0))}</span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="receipt-summary__round">
+        <div class="receipt-summary__round-title">${escapeHtml(round.name)}</div>
+        ${rows}
+        <div class="receipt-summary__subtotal">소계 <strong class="amount">${formatAmount(subtotal)}</strong></div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <section class="section" id="receipt-summary-section" style="animation-delay: 0.05s">
+      <div class="section__title">
+        <i data-lucide="receipt"></i>
+        <span>영수증 내역</span>
+      </div>
+      <div class="card receipt-summary-card">${summaries}</div>
+    </section>
   `;
 }
 
@@ -763,6 +888,11 @@ function bindEvents() {
   document.getElementById('app').addEventListener('click', handleDelegatedClick);
   document.getElementById('app').addEventListener('change', handleDelegatedChange);
   document.getElementById('app').addEventListener('input', handleDelegatedInput);
+  // Re-render on blur for receipt item fields to update totals
+  document.getElementById('app').addEventListener('blur', (e) => {
+    const target = e.target.closest('[data-action="update-receipt-item"]');
+    if (target) render();
+  }, true);
 }
 
 function handleDelegatedClick(e) {
@@ -786,6 +916,12 @@ function handleDelegatedClick(e) {
       break;
     case 'remove-round':
       removeRound(parseInt(target.dataset.round));
+      break;
+    case 'add-receipt-item':
+      addReceiptItem(parseInt(target.dataset.round));
+      break;
+    case 'remove-receipt-item':
+      removeReceiptItem(parseInt(target.dataset.round), target.dataset.item);
       break;
     case 'copy-bank': {
       const text = target.dataset.bank;
@@ -831,6 +967,10 @@ function handleDelegatedInput(e) {
     state.payerBankInfos[target.dataset.payer] = target.value;
     state.result = null;
     saveState();
+    return;
+  }
+  if (target.dataset.action === 'update-receipt-item') {
+    updateReceiptItem(parseInt(target.dataset.round), target.dataset.item, target.dataset.field, target.value);
     return;
   }
   if (target.dataset.action === 'update-round') {

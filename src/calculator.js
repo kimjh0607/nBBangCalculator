@@ -215,6 +215,27 @@ export function formatResultText(participants, rounds, result, payerBankInfos = 
     const { transfers } = result;
     const lines = [];
 
+    // 영수증 항목 내역 (입력된 차수만)
+    const roundsWithReceipts = rounds.filter(r =>
+        (r.receiptItems || []).some(i => i.name || i.unitPrice > 0)
+    );
+    if (roundsWithReceipts.length > 0) {
+        lines.push('🧾 영수증 내역');
+        roundsWithReceipts.forEach(round => {
+            const items = (round.receiptItems || []).filter(i => i.name || i.unitPrice > 0);
+            lines.push(`\n📍 ${round.name}`);
+            items.forEach(item => {
+                const total = (item.quantity || 0) * (item.unitPrice || 0);
+                lines.push(`  ${item.name || '(항목)'} × ${item.quantity || 0} = ${formatAmount(total)}`);
+            });
+            const subtotal = items.reduce((sum, i) => sum + (i.quantity || 0) * (i.unitPrice || 0), 0);
+            if (subtotal > 0) lines.push(`  소계: ${formatAmount(subtotal)}`);
+        });
+        lines.push('');
+        lines.push('─────────────────');
+        lines.push('');
+    }
+
     // 차수별 내역
     lines.push('🧾 차수별 내역');
     let grandTotal = 0;
