@@ -32,31 +32,31 @@ export function calculateSettlement(participants, rounds) {
         let perPersonAmounts = {};
 
         if (round.splitDrink) {
-            // 음주/음료/비음주 분리 계산
+            // 음주/음료/비음주 + 식사여부 분리 계산
             const foodAmount = round.foodAmount || 0;
             const drinkAmount = round.drinkAmount || 0;
             const beverageAmount = round.beverageAmount || 0;
             const drinkerIds = round.drinkerIds || [];
             const beveragerIds = round.beveragerIds || [];
-            const totalCount = roundParticipants.length;
+            const noFoodIds = round.noFoodIds || [];
+
+            // 음식값은 식사자만 1/N
+            const eaterCount = roundParticipants.filter(p => !noFoodIds.includes(p.id)).length;
+            // 술값은 음주자만 1/N
             const drinkerCount = roundParticipants.filter(p => drinkerIds.includes(p.id)).length;
+            // 음료값은 음료주문자만 1/N
             const beveragerCount = roundParticipants.filter(p => beveragerIds.includes(p.id)).length;
 
-            // 음식값은 전원 1/N
-            const foodPerPerson = totalCount > 0 ? foodAmount / totalCount : 0;
-            // 술값은 음주자만 1/N
+            const foodPerPerson = eaterCount > 0 ? foodAmount / eaterCount : 0;
             const drinkPerDrinker = drinkerCount > 0 ? drinkAmount / drinkerCount : 0;
-            // 음료값은 음료주문자만 1/N
             const beveragePerBeverager = beveragerCount > 0 ? beverageAmount / beveragerCount : 0;
 
             roundParticipants.forEach(p => {
-                if (drinkerIds.includes(p.id)) {
-                    perPersonAmounts[p.id] = foodPerPerson + drinkPerDrinker;
-                } else if (beveragerIds.includes(p.id)) {
-                    perPersonAmounts[p.id] = foodPerPerson + beveragePerBeverager;
-                } else {
-                    perPersonAmounts[p.id] = foodPerPerson;
-                }
+                let amount = 0;
+                if (!noFoodIds.includes(p.id)) amount += foodPerPerson;
+                if (drinkerIds.includes(p.id)) amount += drinkPerDrinker;
+                else if (beveragerIds.includes(p.id)) amount += beveragePerBeverager;
+                perPersonAmounts[p.id] = amount;
             });
         } else {
             // 단순 1/N
@@ -94,35 +94,46 @@ export function calculateSettlement(participants, rounds) {
 
     });
 
-    // 비고: 차수별 음료/비음주 표시
+    // 비고: 차수별 상태 표시 (음료 / 비음주 / 음식X / 참석만)
     participants.forEach(p => {
         const splitRoundsForP = rounds.filter(r =>
             r.splitDrink && r.participantIds.includes(p.id)
         );
         if (splitRoundsForP.length === 0) return;
 
-        const beverageRounds = splitRoundsForP.filter(r =>
-            (r.beveragerIds || []).includes(p.id)
-        );
-        const soberRounds = splitRoundsForP.filter(r =>
-            !(r.drinkerIds || []).includes(p.id) &&
-            !(r.beveragerIds || []).includes(p.id)
-        );
+        // 차수별 상태 분류
+        const attendOnlyRounds = [];  // 음식X + 비음주 → "참석만"
+        const beverageRounds = [];    // 음료 주문자 (음식 여부 무관)
+        const soberEaterRounds = [];  // 비음주 + 식사
+        const noFoodDrinkerRounds = []; // 음주 + 음식X
 
-        if (beverageRounds.length > 0) {
-            const allBeverage = beverageRounds.length === splitRoundsForP.length;
-            notes[p.id].push(allBeverage
-                ? '음료'
-                : `${beverageRounds.map(r => r.name || `${r.id}차`).join('·')} 음료`
-            );
-        }
-        if (soberRounds.length > 0) {
-            const allSober = soberRounds.length === splitRoundsForP.length;
-            notes[p.id].push(allSober
-                ? '비음주'
-                : `${soberRounds.map(r => r.name || `${r.id}차`).join('·')} 비음주`
-            );
-        }
+        splitRoundsForP.forEach(r => {
+            const isDrinker = (r.drinkerIds || []).includes(p.id);
+            const isBeverager = (r.beveragerIds || []).includes(p.id);
+            const noFood = (r.noFoodIds || []).includes(p.id);
+
+            if (noFood && !isDrinker && !isBeverager) {
+                attendOnlyRounds.push(r);
+            } else if (isBeverager) {
+                beverageRounds.push(r);
+            } else if (!isDrinker && !isBeverager) {
+                soberEaterRounds.push(r);
+            } else if (isDrinker && noFood) {
+                noFoodDrinkerRounds.push(r);
+            }
+        });
+
+        const label = (rounds, text, all) =>
+            all ? text : `${rounds.map(r => r.name || `${r.id}차`).join('·')} ${text}`;
+
+        if (attendOnlyRounds.length > 0)
+            notes[p.id].push(label(attendOnlyRounds, '참석만', attendOnlyRounds.length === splitRoundsForP.length));
+        if (beverageRounds.length > 0)
+            notes[p.id].push(label(beverageRounds, '음료', beverageRounds.length === splitRoundsForP.length));
+        if (soberEaterRounds.length > 0)
+            notes[p.id].push(label(soberEaterRounds, '비음주', soberEaterRounds.length === splitRoundsForP.length));
+        if (noFoodDrinkerRounds.length > 0)
+            notes[p.id].push(label(noFoodDrinkerRounds, '음식X', noFoodDrinkerRounds.length === splitRoundsForP.length));
     });
 
     // 총합 계산

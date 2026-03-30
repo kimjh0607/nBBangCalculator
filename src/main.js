@@ -108,6 +108,7 @@ function removeParticipant(id) {
     r.participantIds = r.participantIds.filter(pid => pid !== id);
     r.drinkerIds = (r.drinkerIds || []).filter(pid => pid !== id);
     r.beveragerIds = (r.beveragerIds || []).filter(pid => pid !== id);
+    r.noFoodIds = (r.noFoodIds || []).filter(pid => pid !== id);
     if (r.payerId === id) r.payerId = null;
   });
   state.result = null;
@@ -163,6 +164,7 @@ function addRound() {
     beveragerIds: [],
     receiptItems: [],
     nextReceiptItemId: 1,
+    noFoodIds: [],
   });
   state.result = null;
   saveState();
@@ -174,6 +176,21 @@ function addRound() {
     const last = cards[cards.length - 1];
     if (last) last.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, 100);
+}
+
+function toggleFoodStatus(roundId, participantId) {
+  const round = state.rounds.find(r => r.id === roundId);
+  if (!round) return;
+  if (!round.noFoodIds) round.noFoodIds = [];
+  const idx = round.noFoodIds.indexOf(participantId);
+  if (idx >= 0) {
+    round.noFoodIds.splice(idx, 1);
+  } else {
+    round.noFoodIds.push(participantId);
+  }
+  state.result = null;
+  saveState();
+  render();
 }
 
 function addReceiptItem(roundId) {
@@ -558,6 +575,7 @@ function renderRounds() {
 function renderRoundCard(round, idx) {
   const drinkerIds = round.drinkerIds || [];
   const beveragerIds = round.beveragerIds || [];
+  const noFoodIds = round.noFoodIds || [];
 
   // 참여자 체크리스트
   const participantChecks = state.participants.map(p => {
@@ -577,6 +595,12 @@ function renderRoundCard(round, idx) {
         </span>
         <span>${escapeHtml(p.name)}</span>
         ${round.splitDrink && checked ? `
+          <span class="food-toggle ${noFoodIds.includes(p.id) ? 'food-toggle--nofood' : 'food-toggle--food'}"
+                data-action="toggle-food"
+                data-round="${round.id}" data-participant="${p.id}"
+                title="클릭해서 식사 여부 변경">
+            ${noFoodIds.includes(p.id) ? '🙅 식사X' : '🍽️ 식사'}
+          </span>
           <span class="drink-toggle drink-toggle--${drinkStatus}"
                 data-action="cycle-round-drink"
                 data-round="${round.id}" data-participant="${p.id}"
@@ -623,7 +647,7 @@ function renderRoundCard(round, idx) {
 
   // 차수에서 음주 구분 활성화 시 안내
   const drinkHint = round.splitDrink
-    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px"><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">아이콘을 클릭할 때마다 순환돼요: 🍺 음주 → 🥤 음료 → 🚫 없음(음식만)</span></p>`
+    ? `<p class="text-muted text-sm mt-2" style="padding-left:2px"><span style="color:var(--text-tertiary);font-size:var(--font-size-xs)">🍽️/🙅 클릭: 식사 여부 · 🍺/🥤/🚫 클릭: 음주 종류 변경</span></p>`
     : '';
 
   return `
@@ -799,7 +823,7 @@ function renderResult() {
       } else if (isPayer) {
         tableHtml += `<td class="amount payer-cell">${formatAmount(val)}<span class="payer-chip">결제</span></td>`;
       } else if (val === 0) {
-        tableHtml += '<td style="color:var(--success)">0원</td>';
+        tableHtml += '<td><span class="attend-only-badge">참석만</span></td>';
       } else {
         tableHtml += `<td class="amount">${formatAmount(val)}</td>`;
       }
@@ -912,6 +936,11 @@ function handleDelegatedClick(e) {
   switch (action) {
     case 'remove-participant':
       removeParticipant(target.dataset.id);
+      break;
+    case 'toggle-food':
+      e.preventDefault();
+      e.stopPropagation();
+      toggleFoodStatus(parseInt(target.dataset.round), target.dataset.participant);
       break;
     case 'cycle-round-drink':
       e.preventDefault();
