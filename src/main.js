@@ -17,6 +17,11 @@ let state = {
 };
 
 // ============================================
+// One-time flag for delegated event binding
+// ============================================
+let delegatedEventsBound = false;
+
+// ============================================
 // ID Generators
 // ============================================
 function genParticipantId() { return `p${state.nextParticipantId++}`; }
@@ -393,8 +398,8 @@ function render() {
   // Bind events
   bindEvents();
 
-  // Init Lucide icons
-  lucide.createIcons();
+  // Init Lucide icons (scope to #app only for performance)
+  lucide.createIcons({ nodes: [app] });
 }
 
 function renderHeader() {
@@ -884,15 +889,18 @@ function bindEvents() {
   }
 
 
-  // Delegated events
-  document.getElementById('app').addEventListener('click', handleDelegatedClick);
-  document.getElementById('app').addEventListener('change', handleDelegatedChange);
-  document.getElementById('app').addEventListener('input', handleDelegatedInput);
-  // Re-render on blur for receipt item fields to update totals
-  document.getElementById('app').addEventListener('blur', (e) => {
-    const target = e.target.closest('[data-action="update-receipt-item"]');
-    if (target) render();
-  }, true);
+  // Delegated events — bind only once to prevent listener accumulation
+  if (!delegatedEventsBound) {
+    const app = document.getElementById('app');
+    app.addEventListener('click', handleDelegatedClick);
+    app.addEventListener('change', handleDelegatedChange);
+    app.addEventListener('input', handleDelegatedInput);
+    app.addEventListener('blur', (e) => {
+      const target = e.target.closest('[data-action="update-receipt-item"]');
+      if (target) render();
+    }, true);
+    delegatedEventsBound = true;
+  }
 }
 
 function handleDelegatedClick(e) {
